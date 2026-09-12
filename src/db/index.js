@@ -12,6 +12,14 @@ db.exec('PRAGMA foreign_keys = ON');
 db.exec('PRAGMA busy_timeout = 5000');
 db.exec(fs.readFileSync(path.join(import.meta.dirname, 'schema.sql'), 'utf8'));
 
+/** Add a column to an existing database if the schema has grown since it was created. */
+function ensureColumn(table, column, definition) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (columns.some((entry) => entry.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+ensureColumn('notifications', 'meta', 'TEXT');
+
 /** Run `fn` inside a transaction, rolling back if it throws. */
 export function transaction(fn) {
   db.exec('BEGIN IMMEDIATE');

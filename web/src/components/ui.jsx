@@ -57,7 +57,11 @@ export function Toast({ message, onDone, ms = 3200 }) {
   return <div className="toast">{message}</div>;
 }
 
-/** Small hook for "load once, show a spinner, surface errors". */
+/**
+ * Small hook for "load once, show a spinner, surface errors". A reload keeps
+ * the previous data on screen, so refreshing after an action does not tear the
+ * panel down underneath the user.
+ */
 export function useAsync(loader, deps = []) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
   const [nonce, setNonce] = useState(0);
@@ -67,10 +71,16 @@ export function useAsync(loader, deps = []) {
     setState((previous) => ({ ...previous, loading: true }));
     loader()
       .then((data) => live && setState({ loading: false, data, error: null }))
-      .catch((error) => live && setState({ loading: false, data: null, error: error.message }));
+      .catch((error) => live && setState((previous) => ({ loading: false, data: previous.data, error: error.message })));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, nonce]);
 
-  return { ...state, reload: () => setNonce((value) => value + 1) };
+  return {
+    ...state,
+    // Only the very first load should blank the screen.
+    loading: state.loading && state.data === null,
+    refreshing: state.loading,
+    reload: () => setNonce((value) => value + 1),
+  };
 }

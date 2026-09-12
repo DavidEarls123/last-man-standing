@@ -13,14 +13,14 @@ export function LeagueProvider({ leagueId, children }) {
       const data = await api.get(`/api/leagues/${leagueId}/home`);
       setState({ loading: false, data, error: null });
     } catch (error) {
-      setState({ loading: false, data: null, error: error.message });
+      setState((previous) => ({ loading: false, data: previous.data, error: error.message }));
     }
   }, [leagueId]);
 
   useEffect(() => { load(); }, [load]);
 
-  if (state.loading) return <div className="content"><Spinner /></div>;
-  if (state.error) return <div className="content"><Alert tone="error">{state.error}</Alert></div>;
+  if (state.loading && !state.data) return <div className="content"><Spinner /></div>;
+  if (!state.data) return <div className="content"><Alert tone="error">{state.error}</Alert></div>;
 
   return (
     <LeagueContext.Provider value={{ ...state.data, leagueId, reload: load }}>

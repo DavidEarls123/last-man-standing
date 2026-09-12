@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { useLeague } from '../league.jsx';
 import { Alert, Card, Empty, Spinner, Toast, useAsync } from '../components/ui.jsx';
 import { formatShort } from '../lib/format.js';
+import EntryOverride from '../components/EntryOverride.jsx';
 
 export default function LeagueAdminPage() {
   const league = useLeague();
@@ -155,6 +156,10 @@ export default function LeagueAdminPage() {
           <button className="btn-ghost" type="submit">Rename</button>
         </form>
       </Card>
+
+      {league.league.role === 'super_admin' && (
+        <EntryOverride leagueId={leagueId} onChange={() => { reload(); league.reload(); }} />
+      )}
 
       <Toast message={toast} onDone={() => setToast('')} />
     </div>

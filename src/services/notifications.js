@@ -34,15 +34,16 @@ function channelsFor(user, settings) {
   return channels;
 }
 
-function enqueue({ user, league, kind, dedupeKey, subject, body, scheduledFor, settings, force = false }) {
+function enqueue({ user, league, kind, dedupeKey, subject, body, scheduledFor, settings, meta = null, force = false }) {
   if (!settings.enabled && !force) return 0;
   let queued = 0;
   for (const channel of channelsFor(user, settings)) {
     const result = run(
       `INSERT OR IGNORE INTO notifications
-         (user_id, league_id, kind, channel, dedupe_key, subject, body, scheduled_for, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
+         (user_id, league_id, kind, channel, dedupe_key, meta, subject, body, scheduled_for, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)`,
       user.id, league?.id ?? null, kind, channel, `${dedupeKey}:${channel}`,
+      meta === null ? null : JSON.stringify(meta),
       subject, body, scheduledFor, nowIso(),
     );
     queued += Number(result.changes);
@@ -116,6 +117,7 @@ export function queueDeadlineReminders() {
           body,
           scheduledFor: new Date(Math.max(sendAt, Date.now())).toISOString(),
           settings,
+          meta: { round, entryId: entry.id, needsPick: !hasPick },
         });
       }
     }
@@ -266,6 +268,24 @@ async function sendSms(to, body) {
   console.log(`\n[sms:console] to=${to}\n${body}\n`);
 }
 
+/**
+ * A reminder queued days ahead can be overtaken by events — the player picks,
+ * or goes out — so check it still applies before it goes anywhere.
+ */
+function isStale(notification) {
+  if (notification.kind !== 'deadline_reminder' || !notification.meta) return false;
+  let meta;
+  try {
+    meta = JSON.parse(notification.meta);
+  } catch {
+    return false;
+  }
+  const entry = get('SELECT status FROM entries WHERE id = ?', meta.entryId);
+  if (!entry || entry.status !== 'active') return true;
+  if (!meta.needsPick) return false;
+  return Boolean(get('SELECT 1 FROM picks WHERE entry_id = ? AND round_number = ?', meta.entryId, meta.round));
+}
+
 /** Send everything that is due. Called on a timer by the scheduler. */
 export async function dispatchDueNotifications({ limit = 50 } = {}) {
   const due = all(
@@ -278,6 +298,10 @@ export async function dispatchDueNotifications({ limit = 50 } = {}) {
 
   let sent = 0;
   for (const notification of due) {
+    if (isStale(notification)) {
+      run("UPDATE notifications SET status = 'skipped', error = ? WHERE id = ?", 'no longer relevant', notification.id);
+      continue;
+    }
     const destination = notification.channel === 'email' ? notification.email : notification.phone;
     if (!destination) {
       run('UPDATE notifications SET status = \'skipped\', error = ? WHERE id = ?', 'no destination', notification.id);

@@ -7,4 +7,3 @@ web/dist/
 .env
 *.log
 .DS_Store
-shot.mjs

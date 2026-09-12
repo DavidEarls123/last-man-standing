@@ -8,7 +8,7 @@ import { hashPassword, randomCode } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { createLeague, leagueContext, leagueOverview } from '../services/leagues.js';
-import { submitPick } from '../services/picks.js';
+import { availableTeamsForRound, entryPicks, submitPick } from '../services/picks.js';
 import { recomputeLeague, settleRound, settleAllLeagues } from '../services/settlement.js';
 import { NOTIFICATION_DEFAULTS, dispatchDueNotifications, notificationSettings, queueDeadlineReminders } from '../services/notifications.js';
 import { seedSeason } from '../db/seed.js';
@@ -235,6 +235,43 @@ adminRouter.post('/leagues/:leagueId/settle', wrap(async (req, res) => {
   const result = settleRound(Number(req.params.leagueId), body.round, { actorUserId: req.user.id, force: body.force });
   broadcastLive();
   res.json(result);
+}));
+
+/** Every entry in a league with its picks — the override screen's data. */
+adminRouter.get('/leagues/:leagueId/entries', wrap(async (req, res) => {
+  const league = get('SELECT * FROM leagues WHERE id = ?', Number(req.params.leagueId));
+  if (!league) throw notFound('League not found');
+  const context = leagueContext(league);
+  const entries = all(
+    `SELECT e.*, u.display_name FROM entries e JOIN users u ON u.id = e.user_id
+     WHERE e.league_id = ? ORDER BY u.display_name COLLATE NOCASE`,
+    league.id,
+  );
+  res.json({
+    rounds: context.rounds.slice(0, 40).map((round) => ({
+      round: round.round, gameweek: round.gameweek.number, deadlinePassed: round.deadlinePassed, settled: round.settled,
+    })),
+    entries: entries.map((entry) => ({
+      entryId: entry.id,
+      name: entry.display_name,
+      status: entry.status,
+      eliminatedRound: entry.eliminated_round,
+      isWinner: Boolean(entry.is_winner),
+      picks: entryPicks(entry.id).map((pick) => ({
+        round: pick.round_number, team: pick.team_name, outcome: pick.outcome, result: pick.result,
+      })),
+    })),
+  });
+}));
+
+adminRouter.get('/leagues/:leagueId/entries/:entryId/teams', wrap(async (req, res) => {
+  const league = get('SELECT * FROM leagues WHERE id = ?', Number(req.params.leagueId));
+  if (!league) throw notFound('League not found');
+  const entry = get('SELECT * FROM entries WHERE id = ? AND league_id = ?', Number(req.params.entryId), league.id);
+  if (!entry) throw notFound('Entry not found');
+  const round = Number(req.query.round);
+  if (!Number.isInteger(round) || round < 1) throw badRequest('round must be a positive whole number');
+  res.json({ round, teams: availableTeamsForRound(league, entry, round) });
 }));
 
 /** Override a pick — for the "my dog ate my deadline" phone calls. */

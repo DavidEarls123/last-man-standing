@@ -140,6 +140,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   kind          TEXT NOT NULL,                -- deadline_reminder | survived | eliminated | ...
   channel       TEXT NOT NULL,                -- email | sms
   dedupe_key    TEXT NOT NULL UNIQUE,
+  meta          TEXT,                         -- JSON context, re-checked before sending
   subject       TEXT NOT NULL,
   body          TEXT NOT NULL,
   scheduled_for TEXT NOT NULL,
