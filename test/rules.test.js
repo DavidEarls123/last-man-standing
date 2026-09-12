@@ -1,0 +1,120 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  availableTeams, currentOpenRound, cycleForRound, decideWinners, fixtureOutcome,
+  gameweekForRound, resultForOutcome, roundForGameweek, settlePick, validatePick,
+} from '../src/domain/rules.js';
+
+const finished = (home, away, homeScore, awayScore) => ({
+  id: 1, status: 'finished', home_team_id: home, away_team_id: away, home_score: homeScore, away_score: awayScore,
+});
+
+test('rounds map onto gameweeks from the league start', () => {
+  assert.equal(roundForGameweek(5, 5), 1);
+  assert.equal(roundForGameweek(5, 9), 5);
+  assert.equal(gameweekForRound(5, 1), 5);
+  assert.equal(gameweekForRound(5, 5), 9);
+});
+
+test('teams free up again only after a full cycle of 20', () => {
+  assert.equal(cycleForRound(1, 20), 0);
+  assert.equal(cycleForRound(20, 20), 0);
+  assert.equal(cycleForRound(21, 20), 1);
+  assert.equal(cycleForRound(40, 20), 1);
+  assert.equal(cycleForRound(41, 20), 2);
+  assert.throws(() => cycleForRound(0, 20));
+});
+
+test('availableTeams excludes teams used in the same cycle only', () => {
+  const teams = Array.from({ length: 20 }, (_, index) => ({ id: index + 1 }));
+  const picks = [
+    { team_id: 1, cycle: 0, round_number: 1 },
+    { team_id: 2, cycle: 0, round_number: 2 },
+  ];
+  assert.equal(availableTeams(teams, picks, 3, 20).length, 18);
+  // Round 21 starts a new cycle, so everything is back on the table.
+  assert.equal(availableTeams(teams, picks, 21, 20).length, 20);
+});
+
+test('fixture outcomes read from the picked team point of view', () => {
+  assert.equal(fixtureOutcome(finished(10, 20, 2, 1), 10), 'win');
+  assert.equal(fixtureOutcome(finished(10, 20, 2, 1), 20), 'loss');
+  assert.equal(fixtureOutcome(finished(10, 20, 1, 1), 10), 'draw');
+  assert.equal(fixtureOutcome({ status: 'live', home_team_id: 10, away_team_id: 20, home_score: 1, away_score: 0 }, 10), 'pending');
+  assert.equal(fixtureOutcome({ status: 'postponed', home_team_id: 10, away_team_id: 20 }, 10), 'void');
+  assert.equal(fixtureOutcome(null, 10), 'void', 'a blank gameweek is a void pick');
+  assert.throws(() => fixtureOutcome(finished(10, 20, 1, 0), 99));
+});
+
+test('a draw knocks you out by default but a league can allow it', () => {
+  assert.equal(resultForOutcome('draw'), 'eliminated');
+  assert.equal(resultForOutcome('draw', { drawPolicy: 'survive' }), 'survived');
+  assert.equal(resultForOutcome('void'), 'eliminated');
+  assert.equal(resultForOutcome('void', { voidPolicy: 'survive' }), 'survived');
+  assert.equal(resultForOutcome('win', { drawPolicy: 'survive' }), 'survived');
+  assert.equal(settlePick(finished(3, 4, 0, 2), 4).result, 'survived');
+});
+
+test('validatePick: before the entry deadline you pick exactly the opening block', () => {
+  const base = {
+    entryStatus: 'active', leagueStatus: 'open', teamCount: 20, usedPicks: [],
+    teamPlaysInRound: true, deadlinePassed: false, entryDeadlinePassed: false, initialPicks: 3,
+  };
+  assert.equal(validatePick({ ...base, round: 1, teamId: 1 }).ok, true);
+  assert.equal(validatePick({ ...base, round: 3, teamId: 1 }).ok, true);
+  assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).code, 'too_far_ahead');
+});
+
+test('validatePick: a used team is blocked until its cycle ends', () => {
+  const used = [1, 2, 3, 4].map((round) => ({ team_id: round + 5, cycle: 0, round_number: round }));
+  const verdict = validatePick({
+    entryStatus: 'active', leagueStatus: 'active', round: 5, teamCount: 20, usedPicks: used,
+    teamId: 7, teamPlaysInRound: true, deadlinePassed: false, entryDeadlinePassed: true, initialPicks: 3,
+  });
+  assert.equal(verdict.ok, false);
+  assert.equal(verdict.code, 'team_used');
+  assert.match(verdict.message, /round 21/);
+});
+
+test('validatePick: locked out after the deadline, once eliminated, and beyond the next round', () => {
+  const base = {
+    entryStatus: 'active', leagueStatus: 'active', teamCount: 20, teamPlaysInRound: true,
+    entryDeadlinePassed: true, initialPicks: 3,
+    usedPicks: [1, 2, 3].map((round) => ({ team_id: round, cycle: 0, round_number: round })),
+  };
+  assert.equal(validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: true }).code, 'deadline_passed');
+  assert.equal(validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: false }).ok, true);
+  assert.equal(validatePick({ ...base, round: 5, teamId: 9, deadlinePassed: false }).code, 'too_far_ahead');
+  assert.equal(
+    validatePick({ ...base, entryStatus: 'eliminated', round: 4, teamId: 9, deadlinePassed: false }).code,
+    'eliminated',
+  );
+  assert.equal(
+    validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: false, teamPlaysInRound: false }).code,
+    'no_fixture',
+  );
+});
+
+test('currentOpenRound follows the last pick made', () => {
+  assert.equal(currentOpenRound([], 3), 3);
+  assert.equal(currentOpenRound([{ round_number: 3 }], 3), 4);
+  assert.equal(currentOpenRound([{ round_number: 7 }], 3), 8);
+});
+
+test('decideWinners: one survivor wins, a wipeout is shared', () => {
+  const rolling = decideWinners(
+    [{ id: 1, status: 'active' }, { id: 2, status: 'active' }, { id: 3, status: 'eliminated', eliminated_round: 4 }], 4,
+  );
+  assert.equal(rolling.complete, false);
+
+  const single = decideWinners([{ id: 1, status: 'active' }, { id: 2, status: 'eliminated', eliminated_round: 4 }], 4);
+  assert.deepEqual(single, { complete: true, winnerIds: [1], reason: 'last_standing' });
+
+  const wipeout = decideWinners(
+    [{ id: 1, status: 'eliminated', eliminated_round: 4 }, { id: 2, status: 'eliminated', eliminated_round: 4 },
+     { id: 3, status: 'eliminated', eliminated_round: 2 }], 4,
+  );
+  assert.equal(wipeout.complete, true);
+  assert.deepEqual(wipeout.winnerIds, [1, 2]);
+  assert.equal(wipeout.reason, 'all_out_same_round');
+});

@@ -1,0 +1,28 @@
+{
+  "name": "last-man-standing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Last Man Standing competition platform for Premier League football",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/index.js",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm --prefix web install && npm --prefix web run build",
+    "seed": "node --disable-warning=ExperimentalWarning src/cli/seed.js",
+    "bootstrap": "node --disable-warning=ExperimentalWarning src/cli/bootstrap.js",
+    "superadmin:reset": "node --disable-warning=ExperimentalWarning src/cli/superadmin-reset.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.0.9",
+    "zod": "^4.1.12"
+  }
+}

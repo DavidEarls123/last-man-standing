@@ -1,0 +1,26 @@
+{
+  "season": "2025/26",
+  "note": "Sample Premier League team list used by `npm run seed`. Replace with the real season's clubs, or switch FOOTBALL_PROVIDER=football-data to pull fixtures and results from football-data.org.",
+  "teams": [
+    { "name": "Arsenal", "shortName": "ARS" },
+    { "name": "Aston Villa", "shortName": "AVL" },
+    { "name": "AFC Bournemouth", "shortName": "BOU" },
+    { "name": "Brentford", "shortName": "BRE" },
+    { "name": "Brighton & Hove Albion", "shortName": "BHA" },
+    { "name": "Burnley", "shortName": "BUR" },
+    { "name": "Chelsea", "shortName": "CHE" },
+    { "name": "Crystal Palace", "shortName": "CRY" },
+    { "name": "Everton", "shortName": "EVE" },
+    { "name": "Fulham", "shortName": "FUL" },
+    { "name": "Leeds United", "shortName": "LEE" },
+    { "name": "Liverpool", "shortName": "LIV" },
+    { "name": "Manchester City", "shortName": "MCI" },
+    { "name": "Manchester United", "shortName": "MUN" },
+    { "name": "Newcastle United", "shortName": "NEW" },
+    { "name": "Nottingham Forest", "shortName": "NFO" },
+    { "name": "Sunderland", "shortName": "SUN" },
+    { "name": "Tottenham Hotspur", "shortName": "TOT" },
+    { "name": "West Ham United", "shortName": "WHU" },
+    { "name": "Wolverhampton Wanderers", "shortName": "WOL" }
+  ]
+}
