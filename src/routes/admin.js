@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { all, get, run, audit, getSetting, setSetting, transaction } from '../db/index.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { parse, wrap, emailSchema, phoneSchema } from '../lib/validate.js';
-import { checkPasswordStrength, hashPassword, randomCode } from '../lib/auth.js';
+import { hashPassword, randomCode } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { createLeague, leagueContext, leagueOverview } from '../services/leagues.js';

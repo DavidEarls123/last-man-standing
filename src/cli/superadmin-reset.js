@@ -17,7 +17,7 @@ async function main() {
   }
   console.log(`Resetting credentials for: ${user.email || user.phone} (${user.display_name})`);
 
-  let password = String(flag('password') || '');
+  let password = String(flag('password') ?? '');
   while (true) {
     if (!password) password = await ask('New passphrase (20+ chars): ', { silent: true });
     const strength = checkPasswordStrength(password, { superAdmin: true });

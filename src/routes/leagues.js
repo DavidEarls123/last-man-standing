@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { all, get, run, audit } from '../db/index.js';
-import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
+import { badRequest, forbidden, notFound } from '../lib/errors.js';
 import { parse, wrap, emailSchema, phoneSchema } from '../lib/validate.js';
 import { hashPassword, randomCode } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
@@ -32,6 +32,7 @@ const summarise = (league, context, entry, role) => ({
   entryDeadline: context.entryDeadline,
   entryClosed: context.entryClosed,
   nextOpenRound: context.nextOpenRound,
+  nextDeadline: context.nextOpenRound ? context.roundInfo(context.nextOpenRound).deadline : null,
   roundInPlay: context.roundInPlay,
   lastSettledRound: context.lastSettledRound,
   focusRound: context.focusRound,

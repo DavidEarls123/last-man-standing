@@ -20,11 +20,18 @@ async function main() {
     process.exit(1);
   }
 
-  const email = String(flag('email') || (await ask('Super admin email: '))).trim().toLowerCase();
-  const phone = String(flag('phone') || (await ask('Super admin mobile (optional, +44...): '))).trim();
-  const name = String(flag('name') || (await ask('Display name [Super Admin]: '))).trim() || 'Super Admin';
+  // A flag that is present but empty (--phone=) means "leave this blank",
+  // so only fall back to a prompt when the flag is absent altogether.
+  const answer = async (name, question) => {
+    const provided = flag(name);
+    return String(provided === undefined ? await ask(question) : provided).trim();
+  };
 
-  let password = String(flag('password') || '');
+  const email = (await answer('email', 'Super admin email: ')).toLowerCase();
+  const phone = await answer('phone', 'Super admin mobile (optional, +44...): ');
+  const name = (await answer('name', 'Display name [Super Admin]: ')) || 'Super Admin';
+
+  let password = String(flag('password') ?? '');
   while (true) {
     if (!password) password = await ask('Passphrase (20+ chars, mixed case/digits/symbols): ', { silent: true });
     const strength = checkPasswordStrength(password, { superAdmin: true });

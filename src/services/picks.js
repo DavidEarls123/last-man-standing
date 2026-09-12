@@ -34,10 +34,16 @@ export function availableTeamsForRound(league, entry, round) {
 
   const picks = usedPicks(entry.id);
   const cycle = cycleForRound(round, context.teamCount || 1);
+  // A pick already made for THIS round is not "used up" — it is the current
+  // choice, and can be kept or swapped until the deadline.
+  const currentPick = picks.find((pick) => pick.round_number === round) ?? null;
+  const otherPicks = picks.filter((pick) => pick.round_number !== round);
   const usedThisCycle = new Map(
-    picks.filter((pick) => pick.cycle === cycle).map((pick) => [pick.team_id, pick.round_number]),
+    otherPicks.filter((pick) => pick.cycle === cycle).map((pick) => [pick.team_id, pick.round_number]),
   );
-  const open = new Set(availableTeams(context.teams, picks, round, context.teamCount || 1).map((team) => team.id));
+  const open = new Set(
+    availableTeams(context.teams, otherPicks, round, context.teamCount || 1).map((team) => team.id),
+  );
 
   return context.teams.map((team) => {
     const fixture = fixtureForTeam(gameweek.id, team.id);
@@ -49,6 +55,7 @@ export function availableTeamsForRound(league, entry, round) {
       shortName: team.short_name,
       available: open.has(team.id) && Boolean(fixture),
       usedInRound: usedThisCycle.get(team.id) ?? null,
+      isCurrentPick: currentPick?.team_id === team.id,
       fixture: fixture
         ? {
             id: fixture.id,
