@@ -128,14 +128,14 @@ export function settlePick(fixture, teamId, policies = DEFAULT_POLICIES, context
 /**
  * Validate a proposed pick before it is written.
  *
- * Two phases, and only two:
- *   - The opening block. A league asks for its first N rounds before the
- *     competition starts. Each of those stays editable until its own gameweek
- *     kicks off, but all N have to be in by the entry deadline.
- *   - Everything after. One pick per round, for the round coming up only.
+ * You may pick for any round still to come — as far ahead as you like — but
+ * only the opening block is compulsory, and only up to the entry deadline.
  *
- * Either way the deadline for a round is the first kick off of that gameweek,
- * identical for everyone, and once it passes the round is shut.
+ * The opening block is also final: a league that asks for its first N rounds
+ * up front gets a commitment, so once one of those picks is saved it cannot be
+ * swapped. Everything after the block stays changeable until its own gameweek
+ * kicks off. Either way a round shuts at its first kick off, the same moment
+ * for everyone.
  *
  * @returns {{ok:true}|{ok:false, code:string, message:string}}
  */
@@ -152,6 +152,8 @@ export function validatePick({
   nextOpenRound,
   // Size of the opening block this league asks for, at the start only.
   openingPicks = 1,
+  // Whether this entry already has a pick saved for this round.
+  hasExistingPick = false,
   // True when this round's pick was voided by a called-off fixture and the
   // entrant is choosing a replacement, which reopens an expired deadline.
   reselecting = false,
@@ -176,14 +178,12 @@ export function validatePick({
     if (round < nextOpenRound) {
       return { ok: false, code: 'round_closed', message: `Round ${round} is already under way.` };
     }
-    const furthest = furthestPickableRound(nextOpenRound, openingPicks);
-    if (round > furthest) {
+    // Opening picks are a commitment: made once, and that is that.
+    if (hasExistingPick && isOpeningRound(round, openingPicks)) {
       return {
         ok: false,
-        code: 'too_far_ahead',
-        message: furthest === nextOpenRound
-          ? `You can only pick for round ${nextOpenRound} at the moment.`
-          : `Only the opening ${furthest} rounds are open at the moment.`,
+        code: 'pick_locked',
+        message: `Round ${round} is one of this league's ${openingPicks} opening picks, so it is locked in.`,
       };
     }
   }
@@ -205,20 +205,16 @@ export function validatePick({
   return { ok: true };
 }
 
-/**
- * The last round currently open. While the opening block is still running that
- * is the end of the block; afterwards it is simply the round coming up.
- */
-export function furthestPickableRound(nextOpenRound, openingPicks = 1) {
-  if (!nextOpenRound) return 0;
-  return Math.max(nextOpenRound, Math.min(Math.max(1, openingPicks), OPENING_PICKS_MAX));
-}
+/** Is this round part of the compulsory opening block? */
+export const isOpeningRound = (round, openingPicks = 1) => round <= Math.max(1, openingPicks);
 
-/** Every round open for picking right now, in order. */
-export function openPickRounds(nextOpenRound, openingPicks = 1) {
-  if (!nextOpenRound) return [];
-  const furthest = furthestPickableRound(nextOpenRound, openingPicks);
-  return Array.from({ length: furthest - nextOpenRound + 1 }, (_, index) => nextOpenRound + index);
+/**
+ * Every round still open for picking, in order: the one coming up and all
+ * those after it. Picking ahead is allowed as far as the season goes.
+ */
+export function openPickRounds(nextOpenRound, lastRound) {
+  if (!nextOpenRound || !lastRound || lastRound < nextOpenRound) return [];
+  return Array.from({ length: lastRound - nextOpenRound + 1 }, (_, index) => nextOpenRound + index);
 }
 
 /**

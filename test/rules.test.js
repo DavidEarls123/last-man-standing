@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_POLICIES, availableTeams, cycleForRound, decideWinners, fixtureOutcome,
-  gameweekForRound, nextAlphabeticalTeam, openPickRounds, outstandingOpeningRounds,
+  gameweekForRound, isOpeningRound, nextAlphabeticalTeam, openPickRounds, outstandingOpeningRounds,
   resultForOutcome, roundForGameweek, settlePick, validatePick,
 } from '../src/domain/rules.js';
 
@@ -109,48 +109,60 @@ test('a replacement pick may be made after the deadline, but only then', () => {
   assert.equal(validatePick({ ...base, reselecting: true }).ok, true);
 });
 
-test('validatePick: you pick for the round coming up, and no further', () => {
+test('validatePick: pick as far ahead as you like, but never into a round under way', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'open', teamCount: 20, usedPicks: [],
     teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 4, openingPicks: 1,
   };
   assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).ok, true);
-
-  const ahead = validatePick({ ...base, round: 5, teamId: 1 });
-  assert.equal(ahead.code, 'too_far_ahead');
-  assert.match(ahead.message, /only pick for round 4/);
+  assert.equal(validatePick({ ...base, round: 5, teamId: 1 }).ok, true);
+  assert.equal(validatePick({ ...base, round: 30, teamId: 1 }).ok, true, 'as far ahead as they wish');
 
   // A round already under way is closed to everyone.
   assert.equal(validatePick({ ...base, round: 3, teamId: 1 }).code, 'round_closed');
 });
 
-test('validatePick: the opening block is open up front, and only at the start', () => {
-  const beforeKickOff = {
+test('validatePick: an opening pick is final once it is made', () => {
+  const base = {
     entryStatus: 'active', leagueStatus: 'open', teamCount: 20, usedPicks: [],
     teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 1, openingPicks: 3,
   };
   for (const round of [1, 2, 3]) {
-    assert.equal(validatePick({ ...beforeKickOff, round, teamId: round }).ok, true);
+    assert.equal(validatePick({ ...base, round, teamId: round }).ok, true);
   }
-  const tooFar = validatePick({ ...beforeKickOff, round: 4, teamId: 9 });
-  assert.equal(tooFar.code, 'too_far_ahead');
-  assert.match(tooFar.message, /opening 3 rounds/);
+  // Rounds beyond the block are open too — picking ahead is just not compulsory.
+  assert.equal(validatePick({ ...base, round: 4, teamId: 9 }).ok, true);
 
-  // Once the block is behind us the competition is strictly one round at a time.
-  const later = { ...beforeKickOff, nextOpenRound: 5, leagueStatus: 'active' };
-  assert.equal(validatePick({ ...later, round: 5, teamId: 9 }).ok, true);
-  const ahead = validatePick({ ...later, round: 6, teamId: 9 });
-  assert.equal(ahead.code, 'too_far_ahead');
-  assert.match(ahead.message, /only pick for round 5/);
+  // Changing one of the opening three is refused.
+  const locked = validatePick({ ...base, round: 2, teamId: 9, hasExistingPick: true });
+  assert.equal(locked.ok, false);
+  assert.equal(locked.code, 'pick_locked');
+  assert.match(locked.message, /3 opening picks/);
+
+  // A pick outside the block can still be swapped until its deadline.
+  assert.equal(validatePick({ ...base, round: 4, teamId: 9, hasExistingPick: true }).ok, true);
+
+  // Being handed a replacement after a called-off game overrides the lock.
+  assert.equal(
+    validatePick({ ...base, round: 2, teamId: 9, hasExistingPick: true, reselecting: true }).ok,
+    true,
+  );
 });
 
-test('openPickRounds narrows as the opening block is played off', () => {
-  assert.deepEqual(openPickRounds(1, 3), [1, 2, 3], 'all three up front');
-  assert.deepEqual(openPickRounds(2, 3), [2, 3], 'round 1 has kicked off');
-  assert.deepEqual(openPickRounds(4, 3), [4], 'the block is over — one at a time');
-  assert.deepEqual(openPickRounds(1, 1), [1], 'a league with no opening block');
-  assert.deepEqual(openPickRounds(7, 1), [7]);
-  assert.deepEqual(openPickRounds(null, 3), []);
+test('isOpeningRound marks the compulsory block', () => {
+  assert.equal(isOpeningRound(1, 3), true);
+  assert.equal(isOpeningRound(3, 3), true);
+  assert.equal(isOpeningRound(4, 3), false);
+  assert.equal(isOpeningRound(1, 1), true);
+  assert.equal(isOpeningRound(2, 1), false);
+});
+
+test('openPickRounds covers everything still to come', () => {
+  assert.deepEqual(openPickRounds(1, 4), [1, 2, 3, 4]);
+  assert.deepEqual(openPickRounds(6, 8), [6, 7, 8]);
+  assert.deepEqual(openPickRounds(6, 6), [6]);
+  assert.deepEqual(openPickRounds(null, 8), []);
+  assert.deepEqual(openPickRounds(9, 8), [], 'no rounds left in the season');
 });
 
 test('outstandingOpeningRounds says what is still owed up front', () => {
@@ -173,7 +185,7 @@ test('validatePick: a used team is blocked until its cycle ends', () => {
   assert.match(verdict.message, /round 21/);
 });
 
-test('validatePick: locked out after the deadline, once eliminated, and beyond the next round', () => {
+test('validatePick: locked out after the deadline and once eliminated', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'active', teamCount: 20, teamPlaysInRound: true,
     nextOpenRound: 4, openingPicks: 1,
@@ -181,7 +193,7 @@ test('validatePick: locked out after the deadline, once eliminated, and beyond t
   };
   assert.equal(validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: true }).code, 'deadline_passed');
   assert.equal(validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: false }).ok, true);
-  assert.equal(validatePick({ ...base, round: 5, teamId: 9, deadlinePassed: false }).code, 'too_far_ahead');
+  assert.equal(validatePick({ ...base, round: 9, teamId: 9, deadlinePassed: false }).ok, true);
   assert.equal(
     validatePick({ ...base, entryStatus: 'eliminated', round: 4, teamId: 9, deadlinePassed: false }).code,
     'eliminated',

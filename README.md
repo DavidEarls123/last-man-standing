@@ -12,8 +12,9 @@ must be in before the very first kick off.
 | --- | --- |
 | Entry | Anyone with the join code can enter until the **first kick off of the league's start gameweek**. After that the league is sealed. |
 | Opening picks | A league opens by asking for its first **N** rounds up front, all due before the competition kicks off. The league admin picks N, between **1 and 10**; at 1 the competition simply starts week by week. This happens once, at the start — it is not a rolling window. |
-| Picking after that | One pick per round, for the round coming up. Nothing further ahead is open. |
-| The deadline | The **first kick off of that gameweek**, identical for everyone. Once it passes the round is shut: no late picks, no changes. Opening picks each stay changeable until their own gameweek kicks off. |
+| Opening picks are final | Those N picks lock the moment they are saved. That is the commitment the block exists for, so the app warns before saving one and shows a 🔒 afterwards. Only a called-off fixture (or the super admin) can change one. |
+| Picking after that | One pick per round. Only the round coming up needs a pick, but entrants may pick **as far ahead as they like**, and those later picks stay changeable until their own gameweek kicks off. |
+| The deadline | The **first kick off of that gameweek**, identical for everyone. Once it passes the round is shut: no late picks, no changes. |
 | Team reuse | A club can be used **once per cycle of 20**. Survive all twenty rounds and every club is available again from round 21. |
 | Winning | Your pick must **win**. A draw is not a win. |
 | Elimination | One bad round ends your run. Eliminated entrants keep full read access and can follow the league to the end. |
@@ -92,7 +93,7 @@ Under **Manage**, a league admin sets:
   the active tab — so entrants in several leagues can tell them apart at a glance
 - a **crest**, uploaded from the phone or desktop and shrunk to 256px in the browser
   before it is sent (PNG, JPEG, WebP, GIF or SVG, under 256KB)
-- the size of the **opening block**: 1 to 10 rounds, all due before the first kick off
+- the size of the **opening block**: 1 to 10 rounds, due before the first kick off and locked once saved
 
 Colours and crest show up on the invite preview too, so a join link looks like the league.
 

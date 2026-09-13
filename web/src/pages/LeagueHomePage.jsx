@@ -44,9 +44,10 @@ export default function LeagueHomePage() {
 
       {isPlayer && !isOut && league.owedOpeningRounds?.length > 0 && (
         <Alert tone="warn">
-          This league opens with {league.league.openingPicks} picks. You still owe{' '}
-          round{league.owedOpeningRounds.length === 1 ? '' : 's'} {league.owedOpeningRounds.join(', ')},
-          due before the first kick off — <Countdown deadline={league.league.entryDeadline} /> left.{' '}
+          This league opens with {league.league.openingPicks} picks, and they are final once made.
+          You still owe round{league.owedOpeningRounds.length === 1 ? '' : 's'}{' '}
+          {league.owedOpeningRounds.join(', ')}, due before the first kick off —{' '}
+          <Countdown deadline={league.league.entryDeadline} /> left.{' '}
           <Link to={`/leagues/${league.league.id}/pick`}>Make your picks</Link>
         </Alert>
       )}
@@ -100,6 +101,8 @@ export default function LeagueHomePage() {
                     {pick.team}
                     {pick.autoAssigned && <span className="badge badge-warn" style={{ marginLeft: 7 }}>Auto</span>}
                     {pick.needsReselect && <span className="badge badge-warn" style={{ marginLeft: 7 }}>Pick again</span>}
+                    {pick.locked && !pick.needsReselect && pick.outcome === 'pending'
+                      && <span className="badge badge-pending" style={{ marginLeft: 7 }}>🔒 Locked</span>}
                   </div>
                   <div className="tiny muted">
                     {pick.autoAssigned ? 'Given to you — no pick before the deadline' : formatDateTime(pick.deadline)}

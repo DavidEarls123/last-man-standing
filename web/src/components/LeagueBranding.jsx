@@ -173,8 +173,8 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
             ))}
           </select>
           <span className="tiny dim">
-            Rounds every entrant must pick before the competition kicks off. After that it is one
-            pick per round, whatever you choose here.
+            Rounds every entrant must pick before the competition kicks off, and cannot change once
+            saved. After that, picking ahead is optional and stays changeable until each deadline.
           </span>
         </label>
 

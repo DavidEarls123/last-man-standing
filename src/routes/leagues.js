@@ -13,7 +13,9 @@ import {
   generateJoinCode, getEntry, getLeagueByCode, joinLeague, leagueContext,
   leagueOverview, leagueStandings,
 } from '../services/leagues.js';
-import { availableTeamsForRound, entryPicks, pickPopularity, roundFixturesWithPicks, submitPick } from '../services/picks.js';
+import {
+  availableTeamsForRound, entryPicks, pickIsLocked, pickPopularity, roundFixturesWithPicks, submitPick,
+} from '../services/picks.js';
 import {
   OPENING_PICKS_MAX, OPENING_PICKS_MIN, openPickRounds, outstandingOpeningRounds,
 } from '../domain/rules.js';
@@ -152,8 +154,10 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
   );
   // Rounds an entrant may pick for now: the one coming up, plus any the league
   // lets them get ahead on.
+  // Everything still to come is pickable; only the opening block is compulsory.
+  const lastRound = context.rounds[context.rounds.length - 1]?.round ?? 0;
   const openRounds = req.entry
-    ? openPickRounds(nextRound, req.league.opening_picks).filter((round) => {
+    ? openPickRounds(nextRound, lastRound).filter((round) => {
         const info = context.roundInfo(round);
         return info && !info.deadlinePassed;
       })
@@ -179,6 +183,7 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
       needsReselect: Boolean(pick.needs_reselect),
       reselectDeadline: pick.reselect_deadline,
       autoAssigned: Boolean(pick.auto_assigned),
+      locked: pickIsLocked(pick, req.league.opening_picks),
     })),
     reselection: picks
       .filter((pick) => pick.needs_reselect)

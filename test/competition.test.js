@@ -194,10 +194,10 @@ test('a team cannot be reused inside a cycle, and unlocks in the next one', () =
     () => submitPick({ league, entry, round: 2, teamId: pool[0].id, actorUserId: entry.user_id }),
     /already used that team/i,
   );
+  // Picking further ahead is allowed; the club rule still applies there.
   assert.throws(
-    () => submitPick({ league, entry, round: 3, teamId: pool[1].id, actorUserId: entry.user_id }),
-    /opening 2 rounds/i,
-    'and never further ahead than the opening block',
+    () => submitPick({ league, entry, round: 9, teamId: pool[0].id, actorUserId: entry.user_id }),
+    /already used that team/i,
   );
 
   // The same team is fine again in round 21 — a fresh cycle of all 20 clubs.
@@ -284,10 +284,6 @@ test('one hard deadline a week: pick before it, or the next club is picked for y
 
   // Round 1 is open to both of them, and only round 1.
   submitPick({ league, entry: keen, round: 1, teamId: pool[3].id, actorUserId: keen.user_id });
-  assert.throws(
-    () => submitPick({ league, entry: keen, round: 2, teamId: pool[4].id, actorUserId: keen.user_id }),
-    /only pick for round 1/i,
-  );
 
   // The first kick off arrives — the same moment for everyone.
   const gameweek = get(
@@ -339,9 +335,13 @@ test('the opening block is due up front, and completed for you if it is not', ()
   for (const round of [1, 2, 3]) {
     submitPick({ league, entry: organised, round, teamId: pool[round].id, actorUserId: organised.user_id });
   }
+  // Round 4 is beyond the block: allowed, optional, and still changeable.
+  submitPick({ league, entry: organised, round: 4, teamId: pool[9].id, actorUserId: organised.user_id });
+  submitPick({ league, entry: organised, round: 4, teamId: pool[10].id, actorUserId: organised.user_id });
+  // The opening three are not.
   assert.throws(
-    () => submitPick({ league, entry: organised, round: 4, teamId: pool[9].id, actorUserId: organised.user_id }),
-    /opening 3 rounds/i,
+    () => submitPick({ league, entry: organised, round: 2, teamId: pool[11].id, actorUserId: organised.user_id }),
+    /locked in/i,
   );
   submitPick({ league, entry: partial, round: 1, teamId: pool[7].id, actorUserId: partial.user_id });
 
@@ -363,19 +363,11 @@ test('the opening block is due up front, and completed for you if it is not', ()
   assert.notEqual(filled[1].name, filled[0].name);
   assert.ok(filled[1].name.localeCompare(filled[2].name, 'en-GB') < 0);
 
-  // An assigned opening pick can still be changed until that round kicks off.
+  // Assigned or chosen, an opening pick is final.
   const swap = pool.find((team) => !filled.some((pick) => pick.name === team.name));
-  submitPick({ league, entry: partial, round: 3, teamId: swap.id, actorUserId: partial.user_id });
-  assert.equal(
-    get(`SELECT t.name FROM picks p JOIN teams t ON t.id = p.team_id
-         WHERE p.entry_id = ? AND p.round_number = 3`, partial.id).name,
-    swap.name,
-  );
-
-  // And nothing beyond the block has opened up yet.
   assert.throws(
-    () => submitPick({ league, entry: organised, round: 4, teamId: pool[9].id, actorUserId: organised.user_id }),
-    /opening 3 rounds/i,
+    () => submitPick({ league, entry: partial, round: 3, teamId: swap.id, actorUserId: partial.user_id }),
+    /locked in/i,
   );
 });
 

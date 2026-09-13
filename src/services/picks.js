@@ -1,8 +1,12 @@
 import { all, get, run, audit } from '../db/index.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { nowIso } from '../lib/time.js';
-import { availableTeams, cycleForRound, validatePick } from '../domain/rules.js';
+import { availableTeams, cycleForRound, isOpeningRound, validatePick } from '../domain/rules.js';
 import { gameweekForLeagueRound, leagueContext } from './leagues.js';
+
+/** A pick in the opening block is final once saved, unless it has been voided. */
+export const pickIsLocked = (pick, openingPicks) =>
+  isOpeningRound(pick.round_number, openingPicks) && !pick.needs_reselect;
 
 export const entryPicks = (entryId) =>
   all(
@@ -121,6 +125,7 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
       deadlinePassed: new Date(gameweek.deadline).getTime() <= Date.now(),
       nextOpenRound: context.nextOpenRound,
       openingPicks: league.opening_picks,
+      hasExistingPick: Boolean(existingPick),
       reselecting,
     });
     if (!verdict.ok) throw conflict(verdict.message, { code: verdict.code });
@@ -133,6 +138,12 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
   if (existing) {
     if (existing.result !== 'pending' && !override) {
       throw conflict('That round has already been settled.');
+    }
+    if (!override && !reselecting && isOpeningRound(round, league.opening_picks)) {
+      throw conflict(
+        `Round ${round} is one of this league's ${league.opening_picks} opening picks, so it is locked in.`,
+        { code: 'pick_locked' },
+      );
     }
     run(
       `UPDATE picks SET team_id = ?, cycle = ?, outcome = 'pending', result = 'pending',
