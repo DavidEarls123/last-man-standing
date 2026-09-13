@@ -14,6 +14,7 @@ const { seedSeason } = await import('../src/db/seed.js');
 const { createLeague, joinLeague, leagueContext, leagueOverview } = await import('../src/services/leagues.js');
 const { submitPick, entryPicks } = await import('../src/services/picks.js');
 const { settleRound, recomputeLeague } = await import('../src/services/settlement.js');
+const { applyAutoPicks } = await import('../src/scheduler.js');
 
 // Season starts well in the past so every deadline has already passed and we
 // can drive results directly.
@@ -178,7 +179,10 @@ test('by default a missed deadline is settled with the next club alphabetically'
 test('a team cannot be reused inside a cycle, and unlocks in the next one', () => {
   const owner = makeUser('super4');
   const league = createLeague({
+    // Two rounds open at once, so the reuse rule can be exercised through the
+    // normal validated path rather than an override.
     name: 'Cycles', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
+    advancePicks: 2,
   });
   const pool = all('SELECT * FROM teams WHERE season_id = ? ORDER BY id', futureSeason.seasonId);
   const entry = joinLeague(league, makeUser('cyclist').id);
@@ -191,9 +195,9 @@ test('a team cannot be reused inside a cycle, and unlocks in the next one', () =
     /already used that team/i,
   );
   assert.throws(
-    () => submitPick({ league, entry, round: 4, teamId: pool[1].id, actorUserId: entry.user_id }),
-    /rounds 1 to 3/i,
-    'before kick off you pick the opening block only',
+    () => submitPick({ league, entry, round: 3, teamId: pool[1].id, actorUserId: entry.user_id }),
+    /up to round 2/i,
+    'and never further ahead than the league allows',
   );
 
   // The same team is fine again in round 21 — a fresh cycle of all 20 clubs.
@@ -266,6 +270,58 @@ test('recompute replays a league after a result is corrected', () => {
   recomputeLeague(league.id);
   assert.equal(get('SELECT status FROM entries WHERE id = ?', entry.id).status, 'active');
   assert.equal(get('SELECT result FROM picks WHERE entry_id = ?', entry.id).result, 'survived');
+});
+
+test('one hard deadline a week: pick before it, or the next club is picked for you', () => {
+  const owner = makeUser('super8');
+  const league = createLeague({
+    name: 'Weekly', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
+  });
+  const pool = all('SELECT * FROM teams WHERE season_id = ? ORDER BY name', futureSeason.seasonId);
+  const keen = joinLeague(league, makeUser('organised').id);
+  const late = joinLeague(league, makeUser('forgetful2').id);
+
+  // Round 1 is open to both of them, and only round 1.
+  submitPick({ league, entry: keen, round: 1, teamId: pool[3].id, actorUserId: keen.user_id });
+  assert.throws(
+    () => submitPick({ league, entry: keen, round: 2, teamId: pool[4].id, actorUserId: keen.user_id }),
+    /only pick for round 1/i,
+  );
+
+  // The first kick off arrives — the same moment for everyone.
+  const gameweek = get(
+    'SELECT * FROM gameweeks WHERE season_id = ? AND number = 1', futureSeason.seasonId,
+  );
+  run("UPDATE gameweeks SET deadline = datetime('now', '-1 minute') WHERE id = ?", gameweek.id);
+  run("UPDATE fixtures SET kickoff = datetime('now', '-1 minute') WHERE gameweek_id = ? AND kickoff = ?",
+    gameweek.id, gameweek.deadline);
+
+  assert.throws(
+    () => submitPick({ league, entry: late, round: 1, teamId: pool[0].id, actorUserId: late.user_id }),
+    /deadline .* has passed/i,
+    'nobody sneaks a pick in after the whistle',
+  );
+
+  applyAutoPicks(); // runs across every league; check what it did to this one
+  assert.equal(
+    all('SELECT * FROM picks WHERE league_id = ? AND auto_assigned = 1', league.id).length, 1,
+    'only the entrant without a pick is given one',
+  );
+  const assigned = get(
+    `SELECT t.name, p.auto_assigned FROM picks p JOIN teams t ON t.id = p.team_id
+     WHERE p.entry_id = ? AND p.round_number = 1`,
+    late.id,
+  );
+  assert.equal(assigned.name, pool[0].name, 'the first club alphabetically that they have not used');
+  assert.equal(assigned.auto_assigned, 1);
+
+  // The organised entrant keeps the club they chose, and round 2 is now open.
+  assert.equal(
+    get('SELECT team_id FROM picks WHERE entry_id = ? AND round_number = 1', keen.id).team_id,
+    pool[3].id,
+  );
+  submitPick({ league, entry: keen, round: 2, teamId: pool[4].id, actorUserId: keen.user_id });
+  assert.equal(leagueContext(league).nextOpenRound, 2);
 });
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

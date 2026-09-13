@@ -14,6 +14,7 @@ import {
   leagueOverview, leagueStandings,
 } from '../services/leagues.js';
 import { availableTeamsForRound, entryPicks, pickPopularity, roundFixturesWithPicks, submitPick } from '../services/picks.js';
+import { openPickRounds } from '../domain/rules.js';
 import { addClient } from '../services/live.js';
 import { verifyLeague } from '../services/verification.js';
 import { queueDirect } from '../services/notifications.js';
@@ -30,7 +31,7 @@ const summarise = (league, context, entry, role) => ({
   joinCode: role === 'admin' || role === 'super_admin' ? league.join_code : undefined,
   status: league.status,
   startGameweek: league.start_gameweek,
-  initialPicks: league.initial_picks,
+  advancePicks: league.advance_picks,
   drawPolicy: league.draw_policy,
   voidPolicy: league.void_policy,
   noPickPolicy: league.no_pick_policy,
@@ -107,7 +108,7 @@ leaguesRouter.get('/preview/:code', wrap(async (req, res) => {
     entryDeadline: context.entryDeadline,
     entryClosed: context.entryClosed,
     totalEntries: overview.totalEntries,
-    initialPicks: league.initial_picks,
+    advancePicks: league.advance_picks,
   });
 }));
 
@@ -147,9 +148,13 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
     req.entry && req.entry.status === 'active' && nextRound
       && !picks.some((pick) => pick.round_number === nextRound),
   );
-  const outstandingInitial = req.entry && !context.entryClosed
-    ? Array.from({ length: req.league.initial_picks }, (_, index) => index + 1)
-        .filter((round) => !picks.some((pick) => pick.round_number === round))
+  // Rounds an entrant may pick for now: the one coming up, plus any the league
+  // lets them get ahead on.
+  const openRounds = req.entry
+    ? openPickRounds(nextRound, req.league.advance_picks).filter((round) => {
+        const info = context.roundInfo(round);
+        return info && !info.deadlinePassed;
+      })
     : [];
 
   res.json({
@@ -186,7 +191,8 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
     nextDeadline: nextRound ? context.roundInfo(nextRound).deadline : null,
     nextRound,
     needsPick,
-    outstandingInitialRounds: outstandingInitial,
+    openRounds,
+    unpickedOpenRounds: openRounds.filter((round) => !picks.some((pick) => pick.round_number === round)),
     standings: leagueStandings(req.league).map((row) => ({
       entryId: row.entry_id,
       name: row.display_name,
@@ -401,7 +407,7 @@ const brandingSchema = z.object({
   tagline: z.string().trim().max(120).nullable().optional(),
   primaryColor: hexColor.optional(),
   secondaryColor: hexColor.optional(),
-  initialPicks: z.number().int().min(1).max(10).optional(),
+  advancePicks: z.number().int().min(1).max(10).optional(),
   // A data: URL from the crest upload, or null to clear it.
   logo: z.string().max(400_000).nullable().optional(),
 });
@@ -438,17 +444,6 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
     );
   }
 
-  if (body.initialPicks !== undefined && body.initialPicks !== league.initial_picks) {
-    const ahead = get(
-      'SELECT COUNT(*) AS count FROM picks WHERE league_id = ? AND round_number > ?',
-      league.id, body.initialPicks,
-    ).count;
-    if (ahead > 0) {
-      throw conflict(
-        `Somebody has already picked beyond round ${body.initialPicks}. Raise the number, or clear those picks first.`,
-      );
-    }
-  }
 
   let logo = { buffer: undefined, mime: undefined };
   if (body.logo !== undefined) {
@@ -456,21 +451,21 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
   }
 
   run(
-    `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, initial_picks = ?,
+    `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, advance_picks = ?,
             logo_data = ?, logo_mime = ?
      WHERE id = ?`,
     body.name ?? league.name,
     body.tagline === undefined ? league.tagline : body.tagline,
     body.primaryColor ?? league.primary_color,
     body.secondaryColor ?? league.secondary_color,
-    body.initialPicks ?? league.initial_picks,
+    body.advancePicks ?? league.advance_picks,
     logo.buffer === undefined ? league.logo_data : logo.buffer,
     logo.buffer === undefined ? league.logo_mime : logo.mime,
     league.id,
   );
   audit(req.user.id, 'league.branding_updated', 'league', league.id, {
     name: body.name, tagline: body.tagline, primaryColor: body.primaryColor,
-    secondaryColor: body.secondaryColor, initialPicks: body.initialPicks,
+    secondaryColor: body.secondaryColor, advancePicks: body.advancePicks,
     logo: body.logo === undefined ? 'unchanged' : body.logo === null ? 'cleared' : 'updated',
     // Worth recording separately: an edit that went through a closed lock.
     supersededLock: context.configLocked && isSuperAdmin,

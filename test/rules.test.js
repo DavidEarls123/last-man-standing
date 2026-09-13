@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_POLICIES, availableTeams, currentOpenRound, cycleForRound, decideWinners, fixtureOutcome,
-  gameweekForRound, nextAlphabeticalTeam, resultForOutcome, roundForGameweek, settlePick, validatePick,
+  DEFAULT_POLICIES, availableTeams, cycleForRound, decideWinners, fixtureOutcome,
+  gameweekForRound, nextAlphabeticalTeam, openPickRounds, resultForOutcome, roundForGameweek,
+  settlePick, validatePick,
 } from '../src/domain/rules.js';
 
 const finished = (home, away, homeScore, awayScore) => ({
@@ -73,7 +74,7 @@ test('a voided pick puts that club back in the pool', () => {
 
   const clash = validatePick({
     entryStatus: 'active', leagueStatus: 'active', round: 3, teamCount: 20, usedPicks: picks,
-    teamId: 2, teamPlaysInRound: true, deadlinePassed: false, entryDeadlinePassed: true, initialPicks: 2,
+    teamId: 2, teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 3, advancePicks: 1,
   });
   assert.equal(clash.ok, true);
 });
@@ -102,27 +103,50 @@ test('a missed deadline hands over the next unused club alphabetically', () => {
 test('a replacement pick may be made after the deadline, but only then', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'active', round: 4, teamCount: 20, usedPicks: [],
-    teamId: 9, teamPlaysInRound: true, deadlinePassed: true, entryDeadlinePassed: true, initialPicks: 3,
+    teamId: 9, teamPlaysInRound: true, deadlinePassed: true, nextOpenRound: 5, advancePicks: 1,
   };
   assert.equal(validatePick(base).code, 'deadline_passed');
   assert.equal(validatePick({ ...base, reselecting: true }).ok, true);
 });
 
-test('validatePick: before the entry deadline you pick exactly the opening block', () => {
+test('validatePick: you pick for the round coming up, and no further', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'open', teamCount: 20, usedPicks: [],
-    teamPlaysInRound: true, deadlinePassed: false, entryDeadlinePassed: false, initialPicks: 3,
+    teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 4, advancePicks: 1,
   };
-  assert.equal(validatePick({ ...base, round: 1, teamId: 1 }).ok, true);
-  assert.equal(validatePick({ ...base, round: 3, teamId: 1 }).ok, true);
-  assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).code, 'too_far_ahead');
+  assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).ok, true);
+
+  const ahead = validatePick({ ...base, round: 5, teamId: 1 });
+  assert.equal(ahead.code, 'too_far_ahead');
+  assert.match(ahead.message, /only pick for round 4/);
+
+  // A round already under way is closed to everyone.
+  assert.equal(validatePick({ ...base, round: 3, teamId: 1 }).code, 'round_closed');
+});
+
+test('validatePick: a league may let entrants get a few rounds ahead', () => {
+  const base = {
+    entryStatus: 'active', leagueStatus: 'active', teamCount: 20, usedPicks: [],
+    teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 4, advancePicks: 3,
+  };
+  assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).ok, true);
+  assert.equal(validatePick({ ...base, round: 6, teamId: 1 }).ok, true);
+  const tooFar = validatePick({ ...base, round: 7, teamId: 1 });
+  assert.equal(tooFar.code, 'too_far_ahead');
+  assert.match(tooFar.message, /up to round 6/);
+});
+
+test('openPickRounds lists what is currently pickable', () => {
+  assert.deepEqual(openPickRounds(4, 1), [4]);
+  assert.deepEqual(openPickRounds(4, 3), [4, 5, 6]);
+  assert.deepEqual(openPickRounds(null, 3), []);
 });
 
 test('validatePick: a used team is blocked until its cycle ends', () => {
   const used = [1, 2, 3, 4].map((round) => ({ team_id: round + 5, cycle: 0, round_number: round }));
   const verdict = validatePick({
     entryStatus: 'active', leagueStatus: 'active', round: 5, teamCount: 20, usedPicks: used,
-    teamId: 7, teamPlaysInRound: true, deadlinePassed: false, entryDeadlinePassed: true, initialPicks: 3,
+    teamId: 7, teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 5, advancePicks: 1,
   });
   assert.equal(verdict.ok, false);
   assert.equal(verdict.code, 'team_used');
@@ -132,7 +156,7 @@ test('validatePick: a used team is blocked until its cycle ends', () => {
 test('validatePick: locked out after the deadline, once eliminated, and beyond the next round', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'active', teamCount: 20, teamPlaysInRound: true,
-    entryDeadlinePassed: true, initialPicks: 3,
+    nextOpenRound: 4, advancePicks: 1,
     usedPicks: [1, 2, 3].map((round) => ({ team_id: round, cycle: 0, round_number: round })),
   };
   assert.equal(validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: true }).code, 'deadline_passed');
@@ -146,12 +170,6 @@ test('validatePick: locked out after the deadline, once eliminated, and beyond t
     validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: false, teamPlaysInRound: false }).code,
     'no_fixture',
   );
-});
-
-test('currentOpenRound follows the last pick made', () => {
-  assert.equal(currentOpenRound([], 3), 3);
-  assert.equal(currentOpenRound([{ round_number: 3 }], 3), 4);
-  assert.equal(currentOpenRound([{ round_number: 7 }], 3), 8);
 });
 
 test('decideWinners: one survivor wins, a wipeout is shared', () => {

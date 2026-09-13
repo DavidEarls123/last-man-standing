@@ -92,7 +92,7 @@ export function generateJoinCode() {
 
 export function createLeague({
   name, seasonId, startGameweek, adminUserId, createdBy,
-  initialPicks = 3, drawPolicy = 'eliminate', voidPolicy = 'reselect',
+  advancePicks = 1, drawPolicy = 'eliminate', voidPolicy = 'reselect',
   noPickPolicy = 'auto_alphabetical', maxEntries = null,
 }) {
   const gameweek = get('SELECT * FROM gameweeks WHERE season_id = ? AND number = ?', seasonId, startGameweek);
@@ -102,10 +102,10 @@ export function createLeague({
   const result = run(
     `INSERT INTO leagues
       (name, join_code, season_id, start_gameweek, status, admin_user_id, created_by_user_id,
-       initial_picks, draw_policy, void_policy, no_pick_policy, max_entries, created_at)
+       advance_picks, draw_policy, void_policy, no_pick_policy, max_entries, created_at)
      VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
     name, joinCode, seasonId, startGameweek, adminUserId ?? null, createdBy,
-    initialPicks, drawPolicy, voidPolicy, noPickPolicy, maxEntries, nowIso(),
+    advancePicks, drawPolicy, voidPolicy, noPickPolicy, maxEntries, nowIso(),
   );
   const leagueId = Number(result.lastInsertRowid);
   audit(createdBy, 'league.create', 'league', leagueId, { name, startGameweek, joinCode });

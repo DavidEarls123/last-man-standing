@@ -39,7 +39,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
     tagline: league.tagline ?? '',
     primaryColor: league.primaryColor,
     secondaryColor: league.secondaryColor,
-    initialPicks: league.initialPicks,
+    advancePicks: league.advancePicks,
   });
   const [logo, setLogo] = useState(undefined); // undefined = unchanged, null = remove
   const [preview, setPreview] = useState(league.logoUrl);
@@ -72,7 +72,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         tagline: form.tagline || null,
         primaryColor: form.primaryColor,
         secondaryColor: form.secondaryColor,
-        initialPicks: Number(form.initialPicks),
+        advancePicks: Number(form.advancePicks),
         ...(logo === undefined ? {} : { logo }),
       });
       setLogo(undefined);
@@ -161,13 +161,14 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         </div>
 
         <label className="field">
-          Picks due before the first kick off
+          How many rounds ahead entrants may pick
           <input
-            type="number" min="1" max="10" value={form.initialPicks}
-            onChange={update('initialPicks')} disabled={readOnly}
+            type="number" min="1" max="10" value={form.advancePicks}
+            onChange={update('advancePicks')} disabled={readOnly}
           />
           <span className="tiny dim">
-            Entrants choose this many rounds up front, then one at a time.
+            1 means the round coming up only. Higher lets people plan ahead if they want to —
+            nobody ever has to pick further than the next deadline.
           </span>
         </label>
 

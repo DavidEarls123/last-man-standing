@@ -101,7 +101,7 @@ function LeaguesSection({ setToast, setError }) {
   const seasons = useAsync(() => api.get('/api/admin/seasons'));
   const overview = useAsync(() => api.get('/api/admin/overview'));
   const [form, setForm] = useState({
-    name: '', startGameweek: 1, adminEmail: '', initialPicks: 3,
+    name: '', startGameweek: 1, adminEmail: '', advancePicks: 1,
     drawPolicy: 'eliminate', voidPolicy: 'reselect', noPickPolicy: 'auto_alphabetical', seasonId: '',
   });
 
@@ -121,7 +121,7 @@ function LeaguesSection({ setToast, setError }) {
         seasonId: Number(form.seasonId),
         startGameweek: Number(form.startGameweek),
         adminEmail: form.adminEmail || undefined,
-        initialPicks: Number(form.initialPicks),
+        advancePicks: Number(form.advancePicks),
         drawPolicy: form.drawPolicy,
         voidPolicy: form.voidPolicy,
         noPickPolicy: form.noPickPolicy,
@@ -166,9 +166,9 @@ function LeaguesSection({ setToast, setError }) {
           </label>
           <div className="grid-2">
             <label className="field">
-              Opening picks
-              <input type="number" min="1" max="10" value={form.initialPicks}
-                onChange={(event) => setForm({ ...form, initialPicks: event.target.value })} />
+              Rounds pickable ahead
+              <input type="number" min="1" max="10" value={form.advancePicks}
+                onChange={(event) => setForm({ ...form, advancePicks: event.target.value })} />
             </label>
             <label className="field">
               A draw

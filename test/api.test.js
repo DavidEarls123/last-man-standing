@@ -67,7 +67,7 @@ test('super admin signs in and builds a league', async () => {
   assert.match(created.body.league.join_code, /^[A-Z0-9]{6}$/);
 });
 
-test('players register, join with the code and pick three teams', async () => {
+test('players register, join with the code and pick for the round coming up', async () => {
   const league = get('SELECT * FROM leagues WHERE name = ?', 'Office LMS');
 
   const registered = await alice('POST', '/api/auth/register', {
@@ -87,25 +87,48 @@ test('players register, join with the code and pick three teams', async () => {
   const playing = teams.body.teams.filter((team) => team.available);
   assert.equal(playing.length, 20, 'every club has a fixture in a normal gameweek');
 
-  for (const round of [1, 2, 3]) {
-    const options = (await alice('GET', `/api/leagues/${league.id}/rounds/${round}/teams`)).body.teams
-      .filter((team) => team.available);
-    const picked = await alice('POST', `/api/leagues/${league.id}/picks`, {
-      round, teamId: options[0].teamId,
-    });
-    assert.equal(picked.status, 201, JSON.stringify(picked.body));
-  }
-
-  const fourth = await alice('POST', `/api/leagues/${league.id}/picks`, {
-    round: 4, teamId: playing[9].teamId,
+  // Only round 1 is open, and one pick is all that is asked for.
+  const first = await alice('POST', `/api/leagues/${league.id}/picks`, {
+    round: 1, teamId: playing[0].teamId,
   });
-  assert.equal(fourth.status, 409);
-  assert.match(fourth.body.error.message, /rounds 1 to 3/i);
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+
+  const ahead = await alice('POST', `/api/leagues/${league.id}/picks`, {
+    round: 2, teamId: playing[9].teamId,
+  });
+  assert.equal(ahead.status, 409);
+  assert.match(ahead.body.error.message, /only pick for round 1/i);
 
   const home = await alice('GET', `/api/leagues/${league.id}/home`);
-  assert.equal(home.body.picks.length, 3);
+  assert.equal(home.body.picks.length, 1);
+  assert.deepEqual(home.body.openRounds, [1], 'just the round coming up');
+  assert.deepEqual(home.body.unpickedOpenRounds, []);
+  assert.equal(home.body.needsPick, false);
   assert.equal(home.body.overview.totalEntries, 1);
   assert.equal(home.body.league.entry.status, 'active');
+});
+
+test('a league can let entrants pick a few rounds ahead if it wants to', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'Office LMS');
+  assert.equal(
+    (await superAdmin('PATCH', `/api/admin/leagues/${league.id}`, { advancePicks: 3 })).status, 200,
+  );
+
+  const home = await alice('GET', `/api/leagues/${league.id}/home`);
+  assert.deepEqual(home.body.openRounds, [1, 2, 3]);
+  assert.deepEqual(home.body.unpickedOpenRounds, [2, 3], 'still nothing they are obliged to do');
+
+  for (const round of [2, 3]) {
+    const options = (await alice('GET', `/api/leagues/${league.id}/rounds/${round}/teams`)).body.teams
+      .filter((team) => team.available);
+    assert.equal(
+      (await alice('POST', `/api/leagues/${league.id}/picks`, { round, teamId: options[0].teamId })).status,
+      201,
+    );
+  }
+  const tooFar = await alice('POST', `/api/leagues/${league.id}/picks`, { round: 4, teamId: 1 });
+  assert.equal(tooFar.status, 409);
+  assert.match(tooFar.body.error.message, /up to round 3/i);
 });
 
 test('picks are private until the deadline, popularity is not', async () => {
@@ -178,7 +201,7 @@ test('the same account can enter several leagues', async () => {
 // A 1x1 transparent PNG.
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-test('the league admin brands the league and sets the opening picks', async () => {
+test('the league admin brands the league and sets how far ahead entrants may pick', async () => {
   const league = get('SELECT * FROM leagues WHERE name = ?', 'Office LMS');
   // Give Alice the league so she is acting as a plain league admin.
   await superAdmin('PATCH', `/api/admin/leagues/${league.id}`, { adminEmail: 'alice@example.com' });
@@ -202,16 +225,11 @@ test('the league admin brands the league and sets the opening picks', async () =
   const badColour = await alice('PATCH', `/api/leagues/${league.id}`, { primaryColor: 'tangerine' });
   assert.equal(badColour.status, 400);
 
-  // Alice has picks for rounds 1-3, so the opening block cannot shrink below 3.
-  const tooFew = await alice('PATCH', `/api/leagues/${league.id}`, { initialPicks: 2 });
-  assert.equal(tooFew.status, 409);
-  assert.match(tooFew.body.error.message, /already picked beyond round 2/i);
-
-  const more = await alice('PATCH', `/api/leagues/${league.id}`, { initialPicks: 5 });
+  const more = await alice('PATCH', `/api/leagues/${league.id}`, { advancePicks: 5 });
   assert.equal(more.status, 200);
-  assert.equal(get('SELECT initial_picks FROM leagues WHERE id = ?', league.id).initial_picks, 5);
+  assert.equal(get('SELECT advance_picks FROM leagues WHERE id = ?', league.id).advance_picks, 5);
 
-  // With five opening picks, round 5 is now inside the block.
+  // Rounds 4 and 5 are now within reach for anyone who wants to get ahead.
   const teams = (await alice('GET', `/api/leagues/${league.id}/rounds/5/teams`)).body.teams
     .filter((team) => team.available);
   assert.equal((await alice('POST', `/api/leagues/${league.id}/picks`, {
@@ -243,7 +261,7 @@ test('setup locks once the admin says it is final, and only the platform admin r
   );
 
   // Rules are locked too, not just the look.
-  assert.equal((await alice('PATCH', `/api/leagues/${leagueId}`, { initialPicks: 4 })).status, 409);
+  assert.equal((await alice('PATCH', `/api/leagues/${leagueId}`, { advancePicks: 4 })).status, 409);
 
   // The platform admin edits straight through the lock.
   const override = await superAdmin('PATCH', `/api/leagues/${leagueId}`, { tagline: 'Fixed by the platform' });

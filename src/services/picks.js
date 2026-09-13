@@ -119,8 +119,8 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
       teamId: team.id,
       teamPlaysInRound: Boolean(fixture),
       deadlinePassed: new Date(gameweek.deadline).getTime() <= Date.now(),
-      entryDeadlinePassed: context.entryClosed,
-      initialPicks: league.initial_picks,
+      nextOpenRound: context.nextOpenRound,
+      advancePicks: league.advance_picks,
       reselecting,
     });
     if (!verdict.ok) throw conflict(verdict.message, { code: verdict.code });

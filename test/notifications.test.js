@@ -57,7 +57,7 @@ test('deadline reminders follow the offsets the super admin sets', () => {
     .map((row) => Math.round((deadline - new Date(row.scheduled_for).getTime()) / 60_000))
     .sort((a, b) => b - a);
   assert.deepEqual(offsets, [2880, 60]);
-  assert.match(queued[0].subject, /first 3 picks/);
+  assert.match(queued[0].subject, /round 1 pick is due/i);
 
   // Running again must not duplicate them.
   notifications.queueDeadlineReminders();

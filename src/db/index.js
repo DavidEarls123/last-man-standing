@@ -28,6 +28,24 @@ ensureColumn('leagues', 'logo_data', 'BLOB');
 ensureColumn('leagues', 'logo_mime', 'TEXT');
 ensureColumn('leagues', 'config_locked_at', 'TEXT');
 ensureColumn('leagues', 'config_locked_by', 'INTEGER');
+
+/**
+ * `initial_picks` used to mean "rounds you must pick before the first kick off".
+ * Entrants now only ever have to pick for the round coming up, so the column
+ * became "rounds you MAY pick ahead" and was renamed to match.
+ */
+(function renameInitialPicks() {
+  const columns = db.prepare('PRAGMA table_info(leagues)').all().map((column) => column.name);
+  if (!columns.includes('initial_picks')) return;
+  if (columns.includes('advance_picks')) {
+    db.exec('ALTER TABLE leagues DROP COLUMN initial_picks');
+    return;
+  }
+  db.exec('ALTER TABLE leagues RENAME COLUMN initial_picks TO advance_picks');
+  // The old default of three was an obligation, not an allowance.
+  db.exec('UPDATE leagues SET advance_picks = 1 WHERE advance_picks = 3');
+  console.log('[db] leagues.initial_picks is now advance_picks (rounds you may pick ahead)');
+})();
 ensureColumn('entries', 'reinstated_at', 'TEXT');
 ensureColumn('entries', 'reinstated_by', 'INTEGER');
 ensureColumn('entries', 'reinstated_reason', 'TEXT');

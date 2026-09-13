@@ -45,8 +45,8 @@ export default function JoinPage() {
         </div>
       </div>
       <p className="muted small">
-        Last Man Standing, starting at gameweek {preview.startGameweek}. You pick a winner for each of
-        the first {preview.initialPicks} rounds before entries close, then one round at a time.
+        Last Man Standing, starting at gameweek {preview.startGameweek}. Pick a winner each round
+        before the gameweek's first kick off. Lose once and you are out.
       </p>
       <div className="stack">
         <div className="small">

@@ -11,12 +11,13 @@ must be in before the very first kick off.
 | Rule | Behaviour |
 | --- | --- |
 | Entry | Anyone with the join code can enter until the **first kick off of the league's start gameweek**. After that the league is sealed. |
-| Opening picks | Before that first kick off every entrant chooses teams for the first **3** rounds — the league admin can set any number from 1 to 10. |
-| Ongoing picks | After the opening block, one pick per round, due before that gameweek's first kick off. Picks can be changed right up to the deadline. |
+| Picking | One pick per round, and nobody has to pick further ahead than the round coming up. Picks can be changed freely right up to the deadline. |
+| The deadline | The **first kick off of that gameweek**, identical for everyone. Once it passes the round is shut: no late picks, no changes. |
+| Picking ahead | Optional, and only if the league allows it — the admin sets how many rounds ahead entrants *may* pick (1 by default, meaning just the next one). It is never an obligation. |
 | Team reuse | A club can be used **once per cycle of 20**. Survive all twenty rounds and every club is available again from round 21. |
 | Winning | Your pick must **win**. A draw is not a win. |
 | Elimination | One bad round ends your run. Eliminated entrants keep full read access and can follow the league to the end. |
-| Missed pick | You are handed the **next club you have not used, alphabetically** — one that still has a game to play. (A league can be set to eliminate instead.) |
+| Missed pick | When the deadline passes, anyone without a pick is handed the **next club they have not used, alphabetically** — one that still has a game to play. (A league can be set to eliminate instead.) |
 | Postponed fixtures | Your pick is voided and you are **told to pick again** from whatever in that gameweek has not kicked off yet. The called-off club goes back in your pool. Nothing left to switch to? The round is void and you go through. |
 | Special circumstances | The league admin can put an eliminated player back in, with a reason that is recorded and shown. |
 | The last one standing | Wins. If every remaining entrant goes out in the same round, they share the win. |
@@ -24,14 +25,17 @@ must be in before the very first kick off.
 Rounds are numbered from the league's start gameweek, so a league starting at gameweek 12
 calls that round 1.
 
+There is one deadline a week and everyone is held to it. Miss it and the competition picks
+for you rather than dropping you — see *Missed pick* above.
+
 ## Roles
 
 - **Super admin** — one per platform (you). Creates leagues, appoints each league's admin,
   can amend anything: results, picks, entries, league settings, accounts, notification timings.
-- **League admin** — exactly one per league. Names and brands the league, sets how many
-  opening picks are due, adds players, shares the join link, removes players, puts an
-  eliminated player back in, messages entrants. Cannot touch results, and cannot change the
-  setup once it is locked.
+- **League admin** — exactly one per league. Names and brands the league, sets how far ahead
+  entrants may pick, adds players, shares the join link, removes players, puts an eliminated
+  player back in, messages entrants. Cannot touch results, and cannot change the setup once it
+  is locked.
 - **Player** — one account, any number of leagues. Joins with a code, makes picks, follows
   along after elimination.
 
@@ -88,7 +92,7 @@ Under **Manage**, a league admin sets:
   the active tab — so entrants in several leagues can tell them apart at a glance
 - a **crest**, uploaded from the phone or desktop and shrunk to 256px in the browser
   before it is sent (PNG, JPEG, WebP, GIF or SVG, under 256KB)
-- how many **opening picks** are due before the first kick off
+- how many **rounds ahead** entrants may pick, if they like to plan (1 = the next round only)
 
 Colours and crest show up on the invite preview too, so a join link looks like the league.
 

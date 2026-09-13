@@ -123,6 +123,12 @@ export function settlePick(fixture, teamId, policies = DEFAULT_POLICIES, context
 
 /**
  * Validate a proposed pick before it is written.
+ *
+ * There is one deadline per round and it is the same for everybody: the first
+ * kick off of that gameweek. Nobody has to pick further ahead than the round
+ * coming up, though a league may let entrants get ahead of themselves by a few
+ * rounds if they want to.
+ *
  * @returns {{ok:true}|{ok:false, code:string, message:string}}
  */
 export function validatePick({
@@ -134,8 +140,10 @@ export function validatePick({
   teamId,
   teamPlaysInRound,
   deadlinePassed,
-  entryDeadlinePassed,
-  initialPicks,
+  // The round currently open for picking: the first whose deadline is still ahead.
+  nextOpenRound,
+  // How many rounds, counting that one, an entrant may pick for. 1 = this round only.
+  advancePicks = 1,
   // True when this round's pick was voided by a called-off fixture and the
   // entrant is choosing a replacement, which reopens an expired deadline.
   reselecting = false,
@@ -152,18 +160,24 @@ export function validatePick({
   if (deadlinePassed && !reselecting) {
     return { ok: false, code: 'deadline_passed', message: 'The deadline for that gameweek has passed.' };
   }
-  // Rounds 1..initialPicks must all be chosen before the entry deadline; after
-  // that first kickoff the competition moves to one pick at a time.
-  if (!entryDeadlinePassed) {
-    if (round > initialPicks) {
+
+  if (!reselecting) {
+    if (!nextOpenRound) {
+      return { ok: false, code: 'no_open_round', message: 'There is no round open for picking right now.' };
+    }
+    if (round < nextOpenRound) {
+      return { ok: false, code: 'round_closed', message: `Round ${round} is already under way.` };
+    }
+    const furthest = nextOpenRound + Math.max(1, advancePicks) - 1;
+    if (round > furthest) {
       return {
         ok: false,
         code: 'too_far_ahead',
-        message: `Before kick off you pick rounds 1 to ${initialPicks} only.`,
+        message: furthest === nextOpenRound
+          ? `You can only pick for round ${nextOpenRound} at the moment.`
+          : `You can pick up to round ${furthest} at the moment.`,
       };
     }
-  } else if (!reselecting && round > currentOpenRound(usedPicks, initialPicks)) {
-    return { ok: false, code: 'too_far_ahead', message: 'You can only pick for the next round.' };
   }
 
   const cycle = cycleForRound(round, teamCount);
@@ -184,13 +198,12 @@ export function validatePick({
 }
 
 /**
- * The furthest round an entry may pick for once the competition is under way:
- * the round after their last pick, so nobody runs ahead of the field. Never
- * below the initial block, which is always open until its deadlines pass.
+ * The rounds an entrant may pick for right now: the one coming up, plus however
+ * far ahead the league lets them work.
  */
-export function currentOpenRound(usedPicks, initialPicks) {
-  const highest = usedPicks.reduce((max, pick) => Math.max(max, pick.round_number), 0);
-  return Math.max(initialPicks, highest + 1);
+export function openPickRounds(nextOpenRound, advancePicks = 1) {
+  if (!nextOpenRound) return [];
+  return Array.from({ length: Math.max(1, advancePicks) }, (_, index) => nextOpenRound + index);
 }
 
 /**

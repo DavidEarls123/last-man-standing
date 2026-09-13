@@ -13,14 +13,12 @@ export default function PickPage() {
   // Before the entry deadline you choose the whole opening block; after it,
   // just the next round.
   const reselect = league.reselection ?? [];
+  const openRounds = league.openRounds ?? [];
   const rounds = useMemo(() => {
-    const open = !info.entryClosed
-      ? Array.from({ length: info.initialPicks }, (_, index) => index + 1)
-      : info.nextOpenRound ? [info.nextOpenRound] : [];
     // A round whose fixture was called off reopens, even past its deadline.
-    return [...new Set([...reselect.map((item) => item.round), ...open])].sort((a, b) => a - b);
+    return [...new Set([...reselect.map((item) => item.round), ...openRounds])].sort((a, b) => a - b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info.entryClosed, info.initialPicks, info.nextOpenRound, JSON.stringify(reselect)]);
+  }, [JSON.stringify(openRounds), JSON.stringify(reselect)]);
 
   const [round, setRound] = useState(rounds[0] ?? 1);
   const [teams, setTeams] = useState(null);
@@ -73,29 +71,33 @@ export default function PickPage() {
       <div>
         <h1>Make your pick</h1>
         <p className="muted small" style={{ marginTop: 4 }}>
-          {info.entryClosed
-            ? 'One pick per round, and never the same team twice in a cycle.'
-            : `Choose all ${info.initialPicks} opening round${info.initialPicks === 1 ? '' : 's'} before entries close — ` }
-          {!info.entryClosed && <Countdown deadline={info.entryDeadline} />}
+          One pick per round, never the same club twice in a cycle. The deadline is the first
+          kick off of the gameweek, and it is the same for everyone.
         </p>
       </div>
 
       {rounds.length > 1 && (
-        <div className="segmented">
-          {rounds.map((option) => {
-            const done = picks.some((pick) => pick.round === option);
-            return (
-              <button
-                key={option}
-                type="button"
-                className={option === round ? 'active' : ''}
-                onClick={() => setRound(option)}
-              >
-                Round {option}{done ? ' ✓' : ''}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          <div className="segmented">
+            {rounds.map((option) => {
+              const done = picks.some((pick) => pick.round === option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  className={option === round ? 'active' : ''}
+                  onClick={() => setRound(option)}
+                >
+                  Round {option}{done ? ' ✓' : ''}
+                </button>
+              );
+            })}
+          </div>
+          <p className="tiny dim" style={{ margin: '-4px 0 0' }}>
+            Only round {rounds[0]} has to be in by its deadline — the rest are there if you like
+            to plan ahead.
+          </p>
+        </>
       )}
 
       {reselecting ? (

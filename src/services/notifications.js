@@ -90,21 +90,20 @@ export function queueDeadlineReminders() {
         );
         if (hasPick && !finalCall) continue;
 
-        const isEntryDeadline = round === 1;
-        const what = isEntryDeadline
-          ? `your first ${league.initial_picks} picks`
-          : `your round ${round} pick`;
         const subject = hasPick
           ? `${league.name}: round ${round} deadline in ${humaniseDuration(offset)}`
-          : `${league.name}: ${what} due in ${humaniseDuration(offset)}`;
+          : `${league.name}: your round ${round} pick is due in ${humaniseDuration(offset)}`;
+        const consequence = league.no_pick_policy === 'eliminate'
+          ? 'or you are out.'
+          : 'or you will be given the next club you have not used, alphabetically.';
         const body = [
           `Hi ${entry.display_name},`,
           '',
           hasPick
             ? `Round ${round} of ${league.name} locks in ${humaniseDuration(offset)}. Your pick is in — good luck.`
-            : `You have not picked for round ${round} of ${league.name} yet. Make ${what} within ${humaniseDuration(offset)} or you are out.`,
+            : `You have not picked for round ${round} of ${league.name} yet. Pick within ${humaniseDuration(offset)} ${consequence}`,
           '',
-          `Deadline: ${roundInfo.deadline}`,
+          `Deadline: ${roundInfo.deadline} — the first kick off of the gameweek, the same for everyone.`,
           `${config.publicUrl}/leagues/${league.id}`,
         ].join('\n');
 

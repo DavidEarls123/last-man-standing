@@ -8,7 +8,7 @@ const outcomeClass = (result) => (result === 'survived' ? 'win' : result === 'el
 
 export default function LeagueHomePage() {
   const league = useLeague();
-  const { overview, picks, standings, needsPick, nextRound, nextDeadline, outstandingInitialRounds } = league;
+  const { overview, picks, standings, needsPick, nextRound, nextDeadline } = league;
   const entry = league.league.entry;
   const isPlayer = Boolean(entry);
   const isOut = entry?.status === 'eliminated';
@@ -31,14 +31,6 @@ export default function LeagueHomePage() {
         </Alert>
       )}
 
-      {!league.league.entryClosed && isPlayer && outstandingInitialRounds.length > 0 && (
-        <Alert tone="warn">
-          Pick rounds {outstandingInitialRounds.join(', ')} before entries close —{' '}
-          <Countdown deadline={league.league.entryDeadline} /> left.{' '}
-          <Link to={`/leagues/${league.league.id}/pick`}>Make your picks</Link>
-        </Alert>
-      )}
-
       {league.reselection?.map((item) => (
         <Alert tone="warn" key={item.round}>
           <strong>{item.team}</strong>'s round {item.round} game is off, so that pick no longer counts —
@@ -50,9 +42,12 @@ export default function LeagueHomePage() {
         </Alert>
       ))}
 
-      {league.league.entryClosed && needsPick && (
+      {needsPick && (
         <Alert tone="warn">
-          Round {nextRound} closes in <Countdown deadline={nextDeadline} /> and you have not picked yet.{' '}
+          Round {nextRound} closes in <Countdown deadline={nextDeadline} /> and you have not picked yet.
+          {league.league.noPickPolicy === 'eliminate'
+            ? ' Miss it and you are out.'
+            : ' Miss it and you will be given the next club you have not used, alphabetically.'}{' '}
           <Link to={`/leagues/${league.league.id}/pick`}>Pick now</Link>
         </Alert>
       )}
@@ -111,7 +106,7 @@ export default function LeagueHomePage() {
           </div>
           {picks.length > 0 && (
             <p className="tiny dim" style={{ marginBottom: 0, marginTop: 10 }}>
-              Teams used this cycle cannot be picked again until all {league.league.teamCount} have been
+              Clubs used this cycle cannot be picked again until all {league.league.teamCount} have been
               used — from round {league.league.teamCount + 1} everything resets.
             </p>
           )}
