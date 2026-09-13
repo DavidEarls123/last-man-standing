@@ -92,7 +92,7 @@ export function generateJoinCode() {
 
 export function createLeague({
   name, seasonId, startGameweek, adminUserId, createdBy,
-  openingPicks = 3, drawPolicy = 'eliminate', voidPolicy = 'reselect',
+  openingPicks = 0, drawPolicy = 'eliminate', voidPolicy = 'reselect',
   noPickPolicy = 'auto_alphabetical', maxEntries = null,
 }) {
   const gameweek = get('SELECT * FROM gameweeks WHERE season_id = ? AND number = ?', seasonId, startGameweek);

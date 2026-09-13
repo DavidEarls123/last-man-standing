@@ -87,9 +87,11 @@ CREATE TABLE IF NOT EXISTS leagues (
   status             TEXT NOT NULL DEFAULT 'open',  -- open | active | completed | archived
   admin_user_id      INTEGER REFERENCES users(id),  -- the single league admin
   created_by_user_id INTEGER NOT NULL REFERENCES users(id),
-  -- Rounds every entrant must pick before the competition starts, 1 to 10.
-  -- A one-off at the start: after that it is one pick per round.
-  opening_picks      INTEGER NOT NULL DEFAULT 3,
+  -- Locked rounds every entrant must pick before the competition starts:
+  -- 0 for none (the normal weekly game), otherwise 2 to 10. A block of one
+  -- would be the same as no block, so it is not offered.
+  opening_picks      INTEGER NOT NULL DEFAULT 0
+    CHECK (opening_picks = 0 OR (opening_picks BETWEEN 2 AND 10)),
   draw_policy        TEXT NOT NULL DEFAULT 'eliminate',        -- eliminate | survive
   void_policy        TEXT NOT NULL DEFAULT 'reselect',         -- reselect | eliminate | survive
   no_pick_policy     TEXT NOT NULL DEFAULT 'auto_alphabetical',-- auto_alphabetical | eliminate

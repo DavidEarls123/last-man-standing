@@ -47,7 +47,7 @@ export default function PickPage() {
   }, [league.leagueId, round]);
 
   async function save() {
-    const isOpening = round <= info.openingPicks && !reselecting;
+    const isOpening = info.openingPicks >= 2 && round <= info.openingPicks && !reselecting;
     if (isOpening) {
       const team = teams?.find((candidate) => candidate.teamId === selected);
       const confirmed = window.confirm(
@@ -127,6 +127,8 @@ export default function PickPage() {
             {owedOpening.length > 0
               ? `Rounds 1 to ${info.openingPicks} are due before the competition starts and cannot be changed once saved. Anything after that is optional and stays changeable until its gameweek kicks off.`
               : 'Only the round coming up needs a pick. Anything further ahead is optional, and stays changeable until its gameweek kicks off.'}
+            {' '}A club you use in any round is gone until all {info.teamCount} have been used,
+            whichever order you pick them in.
           </p>
         </>
       )}

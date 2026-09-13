@@ -8,6 +8,7 @@ import { hashPassword, randomCode } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { createLeague, leagueContext, leagueOverview } from '../services/leagues.js';
+import { isValidOpeningPicks } from '../domain/rules.js';
 import { availableTeamsForRound, entryPicks, submitPick } from '../services/picks.js';
 import { recomputeLeague, settleRound, settleAllLeagues } from '../services/settlement.js';
 import { NOTIFICATION_DEFAULTS, dispatchDueNotifications, notificationSettings, queueDeadlineReminders } from '../services/notifications.js';
@@ -139,7 +140,9 @@ const leagueSchema = z.object({
   startGameweek: z.number().int().min(1).max(38),
   adminUserId: z.number().int().nullable().optional(),
   adminEmail: emailSchema.optional(),
-  openingPicks: z.number().int().min(1).max(10).default(3),
+  openingPicks: z.number().int()
+    .refine(isValidOpeningPicks, 'Choose no opening block (0), or between 2 and 10 rounds')
+    .default(0),
   drawPolicy: z.enum(['eliminate', 'survive']).default('eliminate'),
   voidPolicy: z.enum(['reselect', 'eliminate', 'survive']).default('reselect'),
   noPickPolicy: z.enum(['auto_alphabetical', 'eliminate']).default('auto_alphabetical'),

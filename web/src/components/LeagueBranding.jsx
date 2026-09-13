@@ -4,8 +4,11 @@ import { Alert, Card } from './ui.jsx';
 
 const MAX_DIMENSION = 256;
 
-/** A league asks for between 1 and 10 opening picks — nothing else is offered. */
-const OPENING_PICK_CHOICES = Array.from({ length: 10 }, (_, index) => index + 1);
+/**
+ * Either no opening block, or 2 to 10 locked rounds. A block of one would be
+ * indistinguishable from no block, so it is not offered.
+ */
+const OPENING_PICK_CHOICES = Array.from({ length: 9 }, (_, index) => index + 2);
 
 /**
  * Shrinks a chosen crest to a small square PNG in the browser, so uploads stay
@@ -164,17 +167,17 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         </div>
 
         <label className="field">
-          Opening picks
+          Opening block
           <select value={form.openingPicks} onChange={update('openingPicks')} disabled={readOnly}>
+            <option value={0}>None — start as normal</option>
             {OPENING_PICK_CHOICES.map((count) => (
-              <option key={count} value={count}>
-                {count === 1 ? '1 — straight into week by week' : `${count} rounds up front`}
-              </option>
+              <option key={count} value={count}>{count} locked rounds up front</option>
             ))}
           </select>
           <span className="tiny dim">
-            Rounds every entrant must pick before the competition kicks off, and cannot change once
-            saved. After that, picking ahead is optional and stays changeable until each deadline.
+            Leave this alone for the ordinary weekly game. Choose a block and every entrant must
+            pick those rounds before kick off, and cannot change them afterwards. Either way,
+            picking further ahead is always allowed and never required.
           </span>
         </label>
 

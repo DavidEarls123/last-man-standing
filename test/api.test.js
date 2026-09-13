@@ -61,7 +61,7 @@ test('super admin signs in and builds a league', async () => {
   assert.equal(login.body.user.isSuperAdmin, true);
 
   const created = await superAdmin('POST', '/api/admin/leagues', {
-    name: 'Office LMS', seasonId: season.seasonId, startGameweek: 1, initialPicks: 3,
+    name: 'Office LMS', seasonId: season.seasonId, startGameweek: 1, openingPicks: 3,
   });
   assert.equal(created.status, 201);
   assert.match(created.body.league.join_code, /^[A-Z0-9]{6}$/);
@@ -150,17 +150,29 @@ test('opening picks cannot be changed once they are in', async () => {
   assert.equal(override.status, 200);
 });
 
-test('a league with an opening block of one just starts week by week', async () => {
+test('a league with no opening block just starts week by week', async () => {
   const created = await superAdmin('POST', '/api/admin/leagues', {
-    name: 'Straight in', seasonId: season.seasonId, startGameweek: 1, openingPicks: 1,
+    name: 'Straight in', seasonId: season.seasonId, startGameweek: 1,
   });
+  assert.equal(created.body.league.opening_picks, 0, 'no configuration needed');
   const leagueId = created.body.league.id;
   assert.equal((await alice('POST', '/api/leagues/join', { code: created.body.league.join_code })).status, 201);
 
   const home = await alice('GET', `/api/leagues/${leagueId}/home`);
   assert.equal(home.body.openRounds[0], 1);
   assert.ok(home.body.openRounds.length > 1, 'later rounds are pickable, just not required');
-  assert.deepEqual(home.body.owedOpeningRounds, [1], 'only round 1 is compulsory');
+  assert.deepEqual(home.body.owedOpeningRounds, [], 'nothing is owed up front');
+  assert.equal(home.body.needsPick, true, 'just the round coming up, like any other week');
+
+  // And that first pick is not locked, because no block was asked for.
+  const options = (await alice('GET', `/api/leagues/${leagueId}/rounds/1/teams`)).body.teams
+    .filter((team) => team.available);
+  assert.equal((await alice('POST', `/api/leagues/${leagueId}/picks`, {
+    round: 1, teamId: options[0].teamId,
+  })).status, 201);
+  assert.equal((await alice('POST', `/api/leagues/${leagueId}/picks`, {
+    round: 1, teamId: options[1].teamId,
+  })).status, 201, 'changeable right up to the deadline');
 });
 
 test('picks are private until the deadline, popularity is not', async () => {
@@ -258,10 +270,11 @@ test('the league admin brands the league and sizes the opening block', async () 
   const badColour = await alice('PATCH', `/api/leagues/${league.id}`, { primaryColor: 'tangerine' });
   assert.equal(badColour.status, 400);
 
-  // Only 1 to 10 is accepted.
-  for (const bad of [0, 11, -3]) {
+  // No block, or 2 to 10 — never 1.
+  for (const bad of [1, 11, -3]) {
     assert.equal((await alice('PATCH', `/api/leagues/${league.id}`, { openingPicks: bad })).status, 400);
   }
+  assert.equal((await alice('PATCH', `/api/leagues/${league.id}`, { openingPicks: 0 })).status, 200);
 
   const more = await alice('PATCH', `/api/leagues/${league.id}`, { openingPicks: 5 });
   assert.equal(more.status, 200);

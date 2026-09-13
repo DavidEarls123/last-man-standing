@@ -17,7 +17,7 @@ import {
   availableTeamsForRound, entryPicks, pickIsLocked, pickPopularity, roundFixturesWithPicks, submitPick,
 } from '../services/picks.js';
 import {
-  OPENING_PICKS_MAX, OPENING_PICKS_MIN, openPickRounds, outstandingOpeningRounds,
+  OPENING_PICKS_MAX, OPENING_PICKS_MIN, isValidOpeningPicks, openPickRounds, outstandingOpeningRounds,
 } from '../domain/rules.js';
 import { addClient } from '../services/live.js';
 import { verifyLeague } from '../services/verification.js';
@@ -419,7 +419,11 @@ const brandingSchema = z.object({
   tagline: z.string().trim().max(120).nullable().optional(),
   primaryColor: hexColor.optional(),
   secondaryColor: hexColor.optional(),
-  openingPicks: z.number().int().min(OPENING_PICKS_MIN).max(OPENING_PICKS_MAX).optional(),
+  // 0 for no opening block, otherwise 2 to 10 — one would be no block at all.
+  openingPicks: z.number().int()
+    .refine(isValidOpeningPicks,
+      `Choose no opening block, or between ${OPENING_PICKS_MIN} and ${OPENING_PICKS_MAX} rounds`)
+    .optional(),
   // A data: URL from the crest upload, or null to clear it.
   logo: z.string().max(400_000).nullable().optional(),
 });

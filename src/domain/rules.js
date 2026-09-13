@@ -10,9 +10,15 @@
  *               round 21 opens all 20 teams up again.
  */
 
-/** A league may ask for between 1 and 10 opening picks. */
-export const OPENING_PICKS_MIN = 1;
+/**
+ * A league either has no opening block (0) or asks for 2 to 10 locked rounds
+ * up front. One would behave exactly like none, so it is not a choice.
+ */
+export const OPENING_PICKS_NONE = 0;
+export const OPENING_PICKS_MIN = 2;
 export const OPENING_PICKS_MAX = 10;
+export const isValidOpeningPicks = (value) => value === OPENING_PICKS_NONE
+  || (Number.isInteger(value) && value >= OPENING_PICKS_MIN && value <= OPENING_PICKS_MAX);
 
 export const DEFAULT_POLICIES = Object.freeze({
   // A draw is not a win, so by default it knocks you out.
@@ -150,8 +156,8 @@ export function validatePick({
   deadlinePassed,
   // The first round whose deadline is still ahead of us.
   nextOpenRound,
-  // Size of the opening block this league asks for, at the start only.
-  openingPicks = 1,
+  // Size of the locked opening block, or 0 for a league with no block.
+  openingPicks = 0,
   // Whether this entry already has a pick saved for this round.
   hasExistingPick = false,
   // True when this round's pick was voided by a called-off fixture and the
@@ -205,8 +211,9 @@ export function validatePick({
   return { ok: true };
 }
 
-/** Is this round part of the compulsory opening block? */
-export const isOpeningRound = (round, openingPicks = 1) => round <= Math.max(1, openingPicks);
+/** Is this round part of the compulsory, locked opening block? */
+export const isOpeningRound = (round, openingPicks = 0) =>
+  openingPicks >= OPENING_PICKS_MIN && round <= openingPicks;
 
 /**
  * Every round still open for picking, in order: the one coming up and all
@@ -221,9 +228,10 @@ export function openPickRounds(nextOpenRound, lastRound) {
  * Rounds of the opening block an entry still owes, given the picks it has made.
  * Empty once the block is complete.
  */
-export function outstandingOpeningRounds(usedPicks, openingPicks = 1) {
+export function outstandingOpeningRounds(usedPicks, openingPicks = 0) {
+  if (openingPicks < OPENING_PICKS_MIN) return [];
   const made = new Set(usedPicks.map((pick) => pick.round_number));
-  return Array.from({ length: Math.max(1, openingPicks) }, (_, index) => index + 1)
+  return Array.from({ length: openingPicks }, (_, index) => index + 1)
     .filter((round) => !made.has(round));
 }
 

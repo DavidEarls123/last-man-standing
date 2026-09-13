@@ -101,7 +101,7 @@ function LeaguesSection({ setToast, setError }) {
   const seasons = useAsync(() => api.get('/api/admin/seasons'));
   const overview = useAsync(() => api.get('/api/admin/overview'));
   const [form, setForm] = useState({
-    name: '', startGameweek: 1, adminEmail: '', openingPicks: 3,
+    name: '', startGameweek: 1, adminEmail: '', openingPicks: 0,
     drawPolicy: 'eliminate', voidPolicy: 'reselect', noPickPolicy: 'auto_alphabetical', seasonId: '',
   });
 
@@ -166,11 +166,12 @@ function LeaguesSection({ setToast, setError }) {
           </label>
           <div className="grid-2">
             <label className="field">
-              Opening picks
+              Opening block
               <select value={form.openingPicks}
                 onChange={(event) => setForm({ ...form, openingPicks: event.target.value })}>
-                {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => (
-                  <option key={count} value={count}>{count}</option>
+                <option value={0}>None</option>
+                {Array.from({ length: 9 }, (_, index) => index + 2).map((count) => (
+                  <option key={count} value={count}>{count} locked rounds</option>
                 ))}
               </select>
             </label>

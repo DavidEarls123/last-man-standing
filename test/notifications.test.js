@@ -70,7 +70,6 @@ test('a league with no opening block just chases the round coming up', () => {
   const owner = makeUser('owner1b');
   const league = createLeague({
     name: 'Week by week', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
-    openingPicks: 1,
   });
   const player = makeUser('weekly');
   joinLeague(league, player.id);
@@ -85,7 +84,6 @@ test('a reminder is dropped if the player picks before it is due', async () => {
   const owner = makeUser('owner2');
   const league = createLeague({
     name: 'Stale reminders', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
-    openingPicks: 1,
   });
   const player = makeUser('procrastinator');
   const entry = joinLeague(league, player.id);

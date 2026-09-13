@@ -238,11 +238,21 @@ export function flagReselections({ actorUserId = null } = {}) {
         const calledOff = !fixture || fixture.status === 'postponed' || fixture.status === 'abandoned';
 
         if (!calledOff) {
-          // A game that was off and is now back on: the original pick stands.
-          if (pick.needs_reselect) {
-            run('UPDATE picks SET needs_reselect = 0, reselect_deadline = NULL, updated_at = ? WHERE id = ?',
-              nowIso(), pick.id);
-          }
+          if (!pick.needs_reselect) continue;
+          // A game that was off and is now back on. Voiding it had freed that
+          // club up again, so it can only be restored if the entrant has not
+          // spent it somewhere else in this cycle in the meantime.
+          const spentElsewhere = get(
+            `SELECT 1 FROM picks WHERE entry_id = ? AND cycle = ? AND team_id = ? AND id != ?
+               AND outcome != 'void'`,
+            pick.entry_id, pick.cycle, pick.team_id, pick.id,
+          );
+          if (spentElsewhere) continue; // they still owe a different pick for this round
+          run(
+            `UPDATE picks SET needs_reselect = 0, reselect_deadline = NULL, outcome = 'pending', updated_at = ?
+             WHERE id = ?`,
+            nowIso(), pick.id,
+          );
           continue;
         }
         if (pick.needs_reselect) continue; // already told them

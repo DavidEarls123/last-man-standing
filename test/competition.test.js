@@ -276,7 +276,7 @@ test('one hard deadline a week: pick before it, or the next club is picked for y
   const owner = makeUser('super8');
   const league = createLeague({
     name: 'Weekly', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
-    openingPicks: 1, // no opening block: straight into the weekly rhythm
+    // No opening block: straight into the weekly rhythm.
   });
   const pool = all('SELECT * FROM teams WHERE season_id = ? ORDER BY name', futureSeason.seasonId);
   const keen = joinLeague(league, makeUser('organised').id);

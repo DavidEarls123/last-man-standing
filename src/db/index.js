@@ -48,9 +48,22 @@ ensureColumn('leagues', 'config_locked_by', 'INTEGER');
     : current.includes('initial_picks') ? 'initial_picks' : null;
   if (!previous) return;
   db.exec(`ALTER TABLE leagues RENAME COLUMN ${previous} TO opening_picks`);
-  db.exec('UPDATE leagues SET opening_picks = 1 WHERE opening_picks < 1');
+  console.log(`[db] leagues.${previous} is now opening_picks (locked rounds picked before kick off)`);
+})();
+
+/**
+ * An opening block of one is indistinguishable from no block at all, so it is
+ * no longer offered: those leagues become 0, meaning the ordinary weekly game.
+ */
+(function normaliseOpeningPicks() {
+  const columns = db.prepare('PRAGMA table_info(leagues)').all().map((column) => column.name);
+  if (!columns.includes('opening_picks')) return;
+  const changed = db.prepare(
+    'UPDATE leagues SET opening_picks = 0 WHERE opening_picks = 1',
+  ).run().changes;
   db.exec('UPDATE leagues SET opening_picks = 10 WHERE opening_picks > 10');
-  console.log(`[db] leagues.${previous} is now opening_picks (rounds picked before kick off)`);
+  db.exec('UPDATE leagues SET opening_picks = 0 WHERE opening_picks < 0');
+  if (changed) console.log(`[db] ${changed} league(s) with a one-round opening block now run as normal`);
 })();
 ensureColumn('entries', 'reinstated_at', 'TEXT');
 ensureColumn('entries', 'reinstated_by', 'INTEGER');

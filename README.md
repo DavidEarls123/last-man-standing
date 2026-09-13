@@ -11,11 +11,11 @@ must be in before the very first kick off.
 | Rule | Behaviour |
 | --- | --- |
 | Entry | Anyone with the join code can enter until the **first kick off of the league's start gameweek**. After that the league is sealed. |
-| Opening picks | A league opens by asking for its first **N** rounds up front, all due before the competition kicks off. The league admin picks N, between **1 and 10**; at 1 the competition simply starts week by week. This happens once, at the start — it is not a rolling window. |
-| Opening picks are final | Those N picks lock the moment they are saved. That is the commitment the block exists for, so the app warns before saving one and shows a 🔒 afterwards. Only a called-off fixture (or the super admin) can change one. |
-| Picking after that | One pick per round. Only the round coming up needs a pick, but entrants may pick **as far ahead as they like**, and those later picks stay changeable until their own gameweek kicks off. |
+| Picking | One pick per round. Only the round coming up needs a pick, but entrants may pick **as far ahead as they like**, and those advance picks stay changeable until their own gameweek kicks off. |
 | The deadline | The **first kick off of that gameweek**, identical for everyone. Once it passes the round is shut: no late picks, no changes. |
-| Team reuse | A club can be used **once per cycle of 20**. Survive all twenty rounds and every club is available again from round 21. |
+| Opening block (optional) | Nothing to set up for the ordinary weekly game. A league that wants a committed start can ask for **2 to 10** locked rounds up front, all due before the competition kicks off. (One would be no different from none, so it is not offered.) |
+| Opening picks are final | Where a block is set, those picks lock the moment they are saved — chosen or auto-assigned. The app warns before saving one and marks it 🔒. Only a called-off fixture, or the super admin, can change one. |
+| Team reuse | A club can be used **once per cycle of 20**, whichever order the rounds are picked in: picking a club for round 15 spends it for rounds 1 to 20 alike. Get through all twenty and every club is available again from round 21, then locks up the same way through rounds 21 to 40. |
 | Winning | Your pick must **win**. A draw is not a win. |
 | Elimination | One bad round ends your run. Eliminated entrants keep full read access and can follow the league to the end. |
 | Missed pick | When a deadline passes, anyone without a pick is handed the **next club they have not used, alphabetically** — one that still has a game to play. The same applies to any opening picks missing when entries close. (A league can be set to eliminate instead.) |
@@ -28,6 +28,12 @@ calls that round 1.
 
 There is one deadline a week and everyone is held to it. Miss it and the competition picks
 for you rather than dropping you — see *Missed pick* above.
+
+The once-per-cycle rule is enforced three deep: the pick validator refuses it, the write path
+refuses it again, and a partial unique index on `picks` makes a duplicate impossible to store
+even if both were bypassed. A pick voided by a called-off fixture is the one exception — that
+club was never really used, so it returns to the pool, and a fixture that comes back on only
+restores the original pick if the club has not been spent elsewhere since.
 
 ## Roles
 
@@ -93,7 +99,7 @@ Under **Manage**, a league admin sets:
   the active tab — so entrants in several leagues can tell them apart at a glance
 - a **crest**, uploaded from the phone or desktop and shrunk to 256px in the browser
   before it is sent (PNG, JPEG, WebP, GIF or SVG, under 256KB)
-- the size of the **opening block**: 1 to 10 rounds, due before the first kick off and locked once saved
+- an optional **opening block** of 2 to 10 locked rounds, due before the first kick off
 
 Colours and crest show up on the invite preview too, so a join link looks like the league.
 
