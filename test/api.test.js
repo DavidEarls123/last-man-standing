@@ -219,6 +219,92 @@ test('the league admin brands the league and sets the opening picks', async () =
   })).status, 201);
 });
 
+test('setup locks once the admin says it is final, and only the platform admin reopens it', async () => {
+  // A league that has not kicked off yet, run by Alice.
+  const created = await superAdmin('POST', '/api/admin/leagues', {
+    name: 'Locked league', seasonId: season.seasonId, startGameweek: 3, adminEmail: 'alice@example.com',
+  });
+  const leagueId = created.body.league.id;
+
+  const before = await alice('PATCH', `/api/leagues/${leagueId}`, { tagline: 'Still editable' });
+  assert.equal(before.status, 200);
+  assert.equal(before.body.league.configLocked, false);
+
+  const locked = await alice('POST', `/api/leagues/${leagueId}/lock`);
+  assert.equal(locked.status, 200);
+  assert.ok(locked.body.lockedAt);
+
+  const after = await alice('PATCH', `/api/leagues/${leagueId}`, { tagline: 'Too late' });
+  assert.equal(after.status, 409);
+  assert.equal(after.body.error.details?.code ?? after.body.error.code, 'config_locked');
+  assert.equal(
+    get('SELECT tagline FROM leagues WHERE id = ?', leagueId).tagline, 'Still editable',
+    'the locked value stands',
+  );
+
+  // Rules are locked too, not just the look.
+  assert.equal((await alice('PATCH', `/api/leagues/${leagueId}`, { initialPicks: 4 })).status, 409);
+
+  // The platform admin edits straight through the lock.
+  const override = await superAdmin('PATCH', `/api/leagues/${leagueId}`, { tagline: 'Fixed by the platform' });
+  assert.equal(override.status, 200);
+  assert.equal(override.body.league.tagline, 'Fixed by the platform');
+  assert.equal(override.body.league.configLocked, true, 'and it stays locked afterwards');
+
+  // A league admin cannot reopen their own league.
+  assert.equal((await alice('POST', `/api/leagues/${leagueId}/unlock`, { reason: 'let me in' })).status, 403);
+
+  const reopened = await superAdmin('POST', `/api/leagues/${leagueId}/unlock`, { reason: 'Wrong crest uploaded' });
+  assert.equal(reopened.status, 200);
+  assert.equal((await alice('PATCH', `/api/leagues/${leagueId}`, { tagline: 'Editable again' })).status, 200);
+
+  const trail = get(
+    "SELECT * FROM audit_log WHERE action = 'league.config_unlocked' AND entity_id = ?", leagueId,
+  );
+  assert.ok(trail, 'reopening is on the record');
+  assert.match(trail.detail, /Wrong crest uploaded/);
+});
+
+test('the competition starting locks setup whatever the admin does', async () => {
+  // Office LMS started long ago in this fixture's season.
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+  run("UPDATE gameweeks SET deadline = datetime('now', '-1 day') WHERE season_id = ? AND number = 1", season.seasonId);
+
+  const blocked = await alice('PATCH', `/api/leagues/${league.id}`, { tagline: 'Mid-season rebrand' });
+  assert.equal(blocked.status, 409);
+  assert.match(blocked.body.error.message, /kicked off/i);
+
+  // Unlocking does not hand the league admin the keys back mid-competition.
+  const reopened = await superAdmin('POST', `/api/leagues/${league.id}/unlock`, { reason: 'checking' });
+  assert.equal(reopened.body.stillLocked, true);
+  assert.equal((await alice('PATCH', `/api/leagues/${league.id}`, { tagline: 'Nope' })).status, 409);
+  assert.equal((await superAdmin('PATCH', `/api/leagues/${league.id}`, { tagline: 'Platform can' })).status, 200);
+
+  // Put the fixture data back for the tests that follow.
+  run("UPDATE gameweeks SET deadline = datetime('now', '+7 days') WHERE season_id = ? AND number = 1", season.seasonId);
+});
+
+test('results are cross-checked and the check is visible to everyone', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+
+  const home = await alice('GET', `/api/leagues/${league.id}/home`);
+  assert.equal(home.body.verification.ok, true);
+  assert.equal(typeof home.body.verification.picksChecked, 'number');
+
+  const detail = await alice('GET', `/api/leagues/${league.id}/verification`);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.ok, true);
+  assert.deepEqual(detail.body.issues, []);
+
+  // Players do not get the detailed report.
+  assert.equal((await bob('GET', `/api/leagues/${league.id}/verification`)).status, 403);
+
+  const platform = await superAdmin('GET', '/api/admin/verification');
+  assert.equal(platform.status, 200);
+  assert.ok(platform.body.leagues.length >= 1);
+  assert.equal(platform.body.failing, 0);
+});
+
 test('a league admin can put an eliminated player back in', async () => {
   const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
   const entry = get(

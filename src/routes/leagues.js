@@ -15,6 +15,7 @@ import {
 } from '../services/leagues.js';
 import { availableTeamsForRound, entryPicks, pickPopularity, roundFixturesWithPicks, submitPick } from '../services/picks.js';
 import { addClient } from '../services/live.js';
+import { verifyLeague } from '../services/verification.js';
 import { queueDirect } from '../services/notifications.js';
 
 export const leaguesRouter = express.Router();
@@ -35,6 +36,9 @@ const summarise = (league, context, entry, role) => ({
   noPickPolicy: league.no_pick_policy,
   entryDeadline: context.entryDeadline,
   entryClosed: context.entryClosed,
+  configLocked: context.configLocked,
+  configLockedAt: context.configLockedAt,
+  configLockReason: context.configLockReason,
   nextOpenRound: context.nextOpenRound,
   nextDeadline: context.nextOpenRound ? context.roundInfo(context.nextOpenRound).deadline : null,
   roundInPlay: context.roundInPlay,
@@ -168,6 +172,17 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
     reselection: picks
       .filter((pick) => pick.needs_reselect)
       .map((pick) => ({ round: pick.round_number, team: pick.team_name, deadline: pick.reselect_deadline })),
+    verification: (() => {
+      const report = verifyLeague(req.league.id);
+      return {
+        ok: report.ok,
+        errors: report.errorCount,
+        warnings: report.warningCount,
+        picksChecked: report.picksChecked,
+        roundsSettled: report.roundsSettled,
+        checkedAt: report.checkedAt,
+      };
+    })(),
     nextDeadline: nextRound ? context.roundInfo(nextRound).deadline : null,
     nextRound,
     needsPick,
@@ -255,6 +270,23 @@ leaguesRouter.get('/:leagueId/live', requireLeagueMember, (req, res) => {
   const round = req.query.round ? Number(req.query.round) : null;
   addClient(res, { leagueId: req.league.id, round: Number.isInteger(round) ? round : null });
 });
+
+/**
+ * The full cross-check: every pick recomputed from the fixture list and
+ * compared with what was recorded. Detail is for the people who can act on it.
+ */
+leaguesRouter.get('/:leagueId/verification', requireLeagueAdmin, wrap(async (req, res) => {
+  res.json(verifyLeague(req.league.id));
+}));
+
+/** Same check, run on demand and recorded in the audit trail. */
+leaguesRouter.post('/:leagueId/verification', requireLeagueAdmin, wrap(async (req, res) => {
+  const report = verifyLeague(req.league.id);
+  audit(req.user.id, 'league.verification_run', 'league', req.league.id, {
+    ok: report.ok, errors: report.errorCount,
+  });
+  res.json(report);
+}));
 
 // ------------------------------------------------------- league admin tools --
 
@@ -393,11 +425,20 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
   const body = parse(brandingSchema, req.body);
   const league = req.league;
   const context = leagueContext(league);
+  const isSuperAdmin = req.leagueRole === 'super_admin';
+
+  // Once setup is locked, the league admin is done editing: the look and the
+  // rules are what the entrants signed up to. The super admin can still amend.
+  if (context.configLocked && !isSuperAdmin) {
+    throw conflict(
+      context.configLockReason === 'competition_started'
+        ? 'Setup locked when the competition kicked off. Ask the platform admin if something has to change.'
+        : 'Setup is locked. Ask the platform admin to reopen it if something has to change.',
+      { code: 'config_locked' },
+    );
+  }
 
   if (body.initialPicks !== undefined && body.initialPicks !== league.initial_picks) {
-    if (context.entryClosed && req.leagueRole !== 'super_admin') {
-      throw conflict('The opening picks can only change before the first kick off');
-    }
     const ahead = get(
       'SELECT COUNT(*) AS count FROM picks WHERE league_id = ? AND round_number > ?',
       league.id, body.initialPicks,
@@ -431,9 +472,58 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
     name: body.name, tagline: body.tagline, primaryColor: body.primaryColor,
     secondaryColor: body.secondaryColor, initialPicks: body.initialPicks,
     logo: body.logo === undefined ? 'unchanged' : body.logo === null ? 'cleared' : 'updated',
+    // Worth recording separately: an edit that went through a closed lock.
+    supersededLock: context.configLocked && isSuperAdmin,
   });
   const updated = get('SELECT * FROM leagues WHERE id = ?', league.id);
   res.json({ league: summarise(updated, leagueContext(updated), req.entry, req.leagueRole) });
+}));
+
+/** Finish setup: the look and the rules stop being editable by the admin. */
+leaguesRouter.post('/:leagueId/lock', requireLeagueAdmin, wrap(async (req, res) => {
+  if (req.league.config_locked_at) {
+    return res.json({ ok: true, alreadyLocked: true, lockedAt: req.league.config_locked_at });
+  }
+  const lockedAt = nowIso();
+  run('UPDATE leagues SET config_locked_at = ?, config_locked_by = ? WHERE id = ?',
+    lockedAt, req.user.id, req.league.id);
+  audit(req.user.id, 'league.config_locked', 'league', req.league.id, null);
+  res.json({ ok: true, lockedAt });
+}));
+
+/** Reopen setup. Platform admin only — that is the point of the lock. */
+leaguesRouter.post('/:leagueId/unlock', requireLeagueAdmin, wrap(async (req, res) => {
+  if (req.leagueRole !== 'super_admin') {
+    throw forbidden('Only the platform admin can reopen a locked league');
+  }
+  const body = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
+  run('UPDATE leagues SET config_locked_at = NULL, config_locked_by = NULL WHERE id = ?', req.league.id);
+  audit(req.user.id, 'league.config_unlocked', 'league', req.league.id, { reason: body.reason });
+
+  const admin = req.league.admin_user_id
+    ? get('SELECT * FROM users WHERE id = ?', req.league.admin_user_id)
+    : null;
+  if (admin) {
+    queueDirect(admin, {
+      kind: 'config_unlocked',
+      league: req.league,
+      subject: `${req.league.name}: setup reopened`,
+      body: [
+        `Hi ${admin.display_name},`,
+        '',
+        `${req.user.display_name} has reopened the setup for ${req.league.name}: ${body.reason}`,
+        'Make your changes and lock it again when you are done.',
+        '',
+        `${config.publicUrl}/leagues/${req.league.id}/admin`,
+      ].join('\n'),
+    });
+  }
+  const context = leagueContext(req.league);
+  res.json({
+    ok: true,
+    // The competition starting locks it regardless of this flag.
+    stillLocked: context.entryClosed,
+  });
 }));
 
 /**

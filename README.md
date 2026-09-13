@@ -30,7 +30,8 @@ calls that round 1.
   can amend anything: results, picks, entries, league settings, accounts, notification timings.
 - **League admin** — exactly one per league. Names and brands the league, sets how many
   opening picks are due, adds players, shares the join link, removes players, puts an
-  eliminated player back in, messages entrants. Cannot touch results.
+  eliminated player back in, messages entrants. Cannot touch results, and cannot change the
+  setup once it is locked.
 - **Player** — one account, any number of leagues. Joins with a code, makes picks, follows
   along after elimination.
 
@@ -91,6 +92,19 @@ Under **Manage**, a league admin sets:
 
 Colours and crest show up on the invite preview too, so a join link looks like the league.
 
+### Locking the setup
+
+The look and the rules are what entrants sign up to, so they stop moving:
+
+- The league admin presses **Lock setup** when they are happy with it.
+- It locks by itself at the first kick off, whether or not anyone pressed the button.
+- Once locked, the league admin sees the settings read-only.
+- The **super admin can edit straight through a lock** — the form warns them, and the change
+  is recorded in the audit log as having superseded it.
+- The super admin can also **reopen** a league that has not started yet, with a reason; the
+  league admin is emailed to say so. A competition that has already kicked off stays locked
+  to its admin either way — at that point the super admin makes the change themselves.
+
 ### Notifications
 
 Deadline reminders and results notices go out by email, SMS, or both, following each
@@ -133,6 +147,35 @@ The break-glass path is the CLI, which requires access to the machine itself.
 
 Ordinary players do get email/SMS resets, and the reset link expires after an hour.
 
+## The results double-check
+
+Settlement decides one pick at a time from a single fixture lookup. A second, independent
+pass then does the opposite: it loads **every** team, gameweek, fixture, entry and pick for
+the league, recomputes each result from scratch, and compares that against what was actually
+recorded. It runs automatically after every settlement, and on demand from the CLI or either
+admin screen.
+
+It checks that:
+
+- each pick's stored outcome and result match what the fixtures and that league's rules give
+- every club a pick names is in the season, and has exactly **one** fixture that gameweek —
+  a missing or duplicated fixture stops the round settling rather than deciding someone's exit
+- each pick's round, gameweek and cycle line up with the league's start gameweek
+- no entrant has used the same club twice in a cycle (voided picks aside)
+- everyone still in has a pick behind every round that has been played, and no losing pick
+- everyone knocked out has something that explains it, in the right round
+- the winners on record are the winners the field produces
+
+```bash
+npm run verify              # every league; exits non-zero if anything disagrees
+npm run verify -- --league=3
+```
+
+**Nothing is ever corrected automatically.** A mismatch and an amended score look identical
+from here, so the check reports and escalates: it logs the detail, writes an audit entry, and
+emails the super admin. Players see a "✓ Checked" line on the league home tab; admins see
+exactly which results disagree and can then fix the score and recompute.
+
 ## Security notes
 
 - Passwords are bcrypt hashed; sessions are signed JWTs in `HttpOnly`, `SameSite=Lax`
@@ -141,7 +184,8 @@ Ordinary players do get email/SMS resets, and the reset link expires after an ho
   posts on top of the `SameSite` cookie.
 - Sign-in, registration, reset and recovery endpoints are rate limited, and eight failed
   sign-ins lock an account for fifteen minutes.
-- Everything an admin does is written to an audit log, visible under **Platform → Audit**.
+- Everything an admin does is written to an audit log, visible under **Platform → Audit**,
+  including edits that superseded a locked setup and every reopening.
 - Individual picks are hidden from other players until the round's deadline passes. Aggregate
   popularity (how many entrants are on each team) is public throughout, which is what the
   gameweek tab is for.
@@ -155,11 +199,12 @@ src/
     leagues.js           league state: rounds, deadlines, standings, overview
     picks.js             availability, submission, popularity, live pick counts
     settlement.js        settle a round, eliminate, decide winners, recompute
+    verification.js      independent re-check of every recorded result
     notifications.js     outbox, reminder scheduling, email/SMS delivery
     live.js              Server-Sent Events hub for live scores
     football/            local + football-data.org providers
   routes/                auth, leagues (incl. league admin), super admin
-  cli/                   bootstrap, seed, demo, superadmin-reset
+  cli/                   bootstrap, seed, demo, verify, superadmin-reset
 web/src/
   pages/                 sign in, league list, home, gameweek, pick, admin consoles
 test/                    rules unit tests, competition lifecycle, HTTP API
@@ -172,8 +217,11 @@ npm test
 ```
 
 Covers the rules in isolation (cycles, draws, called-off fixtures, alphabetical auto-picks,
-winner logic), a full competition lifecycle through the services, the reselection flow end
-to end, and the HTTP API including access control and league branding.
+winner logic), a full competition lifecycle through the services, the reselection flow end to
+end, and the HTTP API including access control, league branding and the setup lock. The
+verification suite deliberately corrupts a settled league — flipping a result, knocking out a
+winner, duplicating a fixture, reusing a club — and checks each one is caught and reported
+rather than silently repaired.
 
 ## Deployment notes
 

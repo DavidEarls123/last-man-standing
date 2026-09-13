@@ -55,6 +55,7 @@ export function leagueContext(leagueOrId) {
   });
 
   const entryDeadline = rounds[0]?.deadline ?? null;
+  const entryClosed = entryDeadline ? new Date(entryDeadline).getTime() <= now : false;
   const nextOpen = rounds.find((round) => !round.deadlinePassed) ?? null;
   const inPlay = rounds.find((round) => round.inPlay) ?? null;
   const lastSettled = [...rounds].reverse().find((round) => round.settled) ?? null;
@@ -66,7 +67,12 @@ export function leagueContext(leagueOrId) {
     policies: policiesFor(league),
     rounds,
     entryDeadline,
-    entryClosed: entryDeadline ? new Date(entryDeadline).getTime() <= now : false,
+    entryClosed,
+    // Settings, rules and branding freeze once the admin locks them in, and in
+    // any case once the first ball is kicked. Only the super admin reopens them.
+    configLocked: Boolean(league.config_locked_at) || entryClosed,
+    configLockedAt: league.config_locked_at,
+    configLockReason: league.config_locked_at ? 'locked_by_admin' : entryClosed ? 'competition_started' : null,
     nextOpenRound: nextOpen?.round ?? null,
     roundInPlay: inPlay?.round ?? null,
     lastSettledRound: lastSettled?.round ?? null,

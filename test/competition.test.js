@@ -132,10 +132,11 @@ test('everyone going out in the same round shares the win', () => {
   assert.equal(get('SELECT status FROM leagues WHERE id = ?', league.id).status, 'completed');
 });
 
-test('missing the deadline without a pick ends your run', () => {
+test('a league set to eliminate on a missed deadline does exactly that', () => {
   const owner = makeUser('super3');
   const league = createLeague({
     name: 'No shows', seasonId: season.seasonId, startGameweek: 15, createdBy: owner.id,
+    noPickPolicy: 'eliminate',
   });
   const pool = teams();
   const keen = joinLeague(league, makeUser('keen').id, { force: true });
@@ -151,6 +152,27 @@ test('missing the deadline without a pick ends your run', () => {
     .find((entry) => entry.id !== keen.id);
   assert.equal(absentEntry.status, 'eliminated');
   assert.equal(absentEntry.eliminated_reason, 'no_pick');
+});
+
+test('by default a missed deadline is settled with the next club alphabetically', () => {
+  const owner = makeUser('super3b');
+  const league = createLeague({
+    name: 'Auto at settlement', seasonId: season.seasonId, startGameweek: 16, createdBy: owner.id,
+  });
+  const absent = joinLeague(league, makeUser('vanished').id, { force: true });
+  finishGameweek(16);
+
+  const result = settleRound(league.id, 1);
+  assert.equal(result.settled, true);
+  const pick = get(
+    `SELECT t.name, p.auto_assigned, p.result FROM picks p JOIN teams t ON t.id = p.team_id
+     WHERE p.entry_id = ? AND p.round_number = 1`,
+    absent.id,
+  );
+  const first = get('SELECT name FROM teams WHERE season_id = ? ORDER BY name LIMIT 1', season.seasonId).name;
+  assert.equal(pick.name, first, 'the club they were handed');
+  assert.equal(pick.auto_assigned, 1);
+  assert.notEqual(pick.result, 'pending', 'and it was judged like any other pick');
 });
 
 test('a team cannot be reused inside a cycle, and unlocks in the next one', () => {

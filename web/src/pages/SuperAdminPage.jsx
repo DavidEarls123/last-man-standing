@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Alert, Card, Empty, Spinner, Stat, Toast, useAsync } from '../components/ui.jsx';
 import { formatShort } from '../lib/format.js';
 
-const SECTIONS = ['Overview', 'Leagues', 'People', 'Results', 'Notifications', 'Security', 'Audit'];
+const SECTIONS = ['Overview', 'Leagues', 'People', 'Results', 'Checks', 'Notifications', 'Security', 'Audit'];
 
 export default function SuperAdminPage() {
   const [section, setSection] = useState('Overview');
@@ -36,6 +36,7 @@ export default function SuperAdminPage() {
       {section === 'Leagues' && <LeaguesSection {...shared} />}
       {section === 'People' && <PeopleSection {...shared} />}
       {section === 'Results' && <ResultsSection {...shared} />}
+      {section === 'Checks' && <ChecksSection {...shared} />}
       {section === 'Notifications' && <NotificationsSection {...shared} />}
       {section === 'Security' && <SecuritySection {...shared} />}
       {section === 'Audit' && <AuditSection />}
@@ -229,6 +230,7 @@ function LeagueRow({ league, onChange, setToast, setError }) {
           <div className="tiny muted">
             GW{league.startGameweek} · code <span className="mono">{league.joinCode}</span> ·{' '}
             {league.admin ? `admin ${league.admin.name}` : 'no admin assigned'}
+            {league.configLocked && ' · setup locked'}
           </div>
         </div>
         <span className="badge badge-pending">{league.status}</span>
@@ -464,6 +466,62 @@ function FixtureEditor({ fixture, onSave }) {
           status,
         })}>Save</button>
       </div>
+    </div>
+  );
+}
+
+/** Cross-check every league on the platform in one place. */
+function ChecksSection() {
+  const { data, loading, error, reload } = useAsync(() => api.get('/api/admin/verification'));
+  if (loading) return <Spinner />;
+  if (error) return <Alert tone="error">{error}</Alert>;
+
+  return (
+    <div className="stack">
+      <Card title="Results double-check">
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Every pick in every league recomputed from the fixture list and compared with what was
+          recorded. Nothing is changed automatically; fix the score under Results, then recompute the
+          league.
+        </p>
+        {data.failing === 0
+          ? <Alert tone="ok">All {data.leagues.length} league{data.leagues.length === 1 ? '' : 's'} agree with the fixtures.</Alert>
+          : <Alert tone="error">{data.failing} league{data.failing === 1 ? '' : 's'} need attention.</Alert>}
+        <button className="btn-ghost btn-sm" type="button" style={{ marginTop: 10 }} onClick={reload}>
+          Run again
+        </button>
+      </Card>
+
+      {data.leagues.map((league) => (
+        <Card key={league.leagueId} title={league.leagueName}>
+          <div className="spread">
+            <span className="small muted">
+              {league.picksChecked} pick{league.picksChecked === 1 ? '' : 's'} · {league.entriesChecked} entrants ·{' '}
+              {league.roundsSettled} settled round{league.roundsSettled === 1 ? '' : 's'}
+            </span>
+            <span className={`badge ${league.ok ? 'badge-in' : 'badge-out'}`}>
+              {league.ok ? 'Agrees' : `${league.errors} wrong`}
+            </span>
+          </div>
+          {league.issues.length > 0 && (
+            <div className="list" style={{ marginTop: 10 }}>
+              {league.issues.map((issue, index) => (
+                <div className="list-item" key={index}>
+                  <span className={`badge ${issue.severity === 'error' ? 'badge-out' : 'badge-warn'}`}>
+                    {issue.severity === 'error' ? 'Wrong' : 'Check'}
+                  </span>
+                  <div className="grow">
+                    <div className="small strong">
+                      {issue.entryName ?? 'League'}{issue.round ? ` · round ${issue.round}` : ''}
+                    </div>
+                    <div className="tiny muted">{issue.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
     </div>
   );
 }

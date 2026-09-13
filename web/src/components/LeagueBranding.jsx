@@ -86,10 +86,28 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
     }
   }
 
-  const locked = league.entryClosed && league.role !== 'super_admin';
+  const isSuperAdmin = league.role === 'super_admin';
+  // Locked setup is read-only for the league admin. The platform admin edits
+  // straight through it, with a warning so it is never done by accident.
+  const readOnly = league.configLocked && !isSuperAdmin;
+  const overriding = league.configLocked && isSuperAdmin;
 
   return (
-    <Card title="Your league's look">
+    <Card title="Your league's look and rules">
+      {readOnly && (
+        <Alert tone="info">
+          {league.configLockReason === 'competition_started'
+            ? 'Locked when the competition kicked off — entrants are playing to these settings now.'
+            : 'You have locked this setup, so it is fixed for your entrants.'}{' '}
+          Ask the platform admin if something genuinely has to change.
+        </Alert>
+      )}
+      {overriding && (
+        <Alert tone="warn">
+          This league's setup is locked. As platform admin your changes still go through, and they are
+          recorded in the audit log.
+        </Alert>
+      )}
       <form
         className="stack"
         onSubmit={save}
@@ -97,24 +115,24 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
       >
         <label className="field">
           Title
-          <input value={form.name} onChange={update('name')} maxLength={80} required />
+          <input value={form.name} onChange={update('name')} maxLength={80} required disabled={readOnly} />
         </label>
         <label className="field">
           Tagline (optional)
           <input
             value={form.tagline} onChange={update('tagline')} maxLength={120}
-            placeholder="Last one standing drinks free"
+            placeholder="Last one standing drinks free" disabled={readOnly}
           />
         </label>
 
         <div className="grid-2">
           <label className="field">
             Main colour
-            <input type="color" value={form.primaryColor} onChange={update('primaryColor')} />
+            <input type="color" value={form.primaryColor} onChange={update('primaryColor')} disabled={readOnly} />
           </label>
           <label className="field">
             Second colour
-            <input type="color" value={form.secondaryColor} onChange={update('secondaryColor')} />
+            <input type="color" value={form.secondaryColor} onChange={update('secondaryColor')} disabled={readOnly} />
           </label>
         </div>
         <div className="swatch-row">
@@ -129,8 +147,8 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
               ? <img className="logo-preview" src={preview} alt="League crest" />
               : <div className="logo-preview" style={{ display: 'grid', placeItems: 'center', fontSize: 26 }}>🏆</div>}
             <div className="grow stack" style={{ gap: 8 }}>
-              <input ref={fileInput} type="file" accept="image/*" onChange={chooseFile} />
-              {preview && (
+              <input ref={fileInput} type="file" accept="image/*" onChange={chooseFile} disabled={readOnly} />
+              {preview && !readOnly && (
                 <button className="btn-ghost btn-sm" type="button" onClick={() => {
                   setLogo(null);
                   setPreview(null);
@@ -146,19 +164,19 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
           Picks due before the first kick off
           <input
             type="number" min="1" max="10" value={form.initialPicks}
-            onChange={update('initialPicks')} disabled={locked}
+            onChange={update('initialPicks')} disabled={readOnly}
           />
           <span className="tiny dim">
-            {locked
-              ? 'Locked now the competition has started.'
-              : 'Entrants choose this many rounds up front, then one at a time.'}
+            Entrants choose this many rounds up front, then one at a time.
           </span>
         </label>
 
         <Alert tone="error">{error}</Alert>
-        <button className="btn-primary" type="submit" disabled={busy}>
-          {busy ? 'Saving…' : 'Save league look'}
-        </button>
+        {!readOnly && (
+          <button className="btn-primary" type="submit" disabled={busy}>
+            {busy ? 'Saving…' : overriding ? 'Save (overriding the lock)' : 'Save league setup'}
+          </button>
+        )}
       </form>
     </Card>
   );

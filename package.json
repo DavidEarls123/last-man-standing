@@ -16,7 +16,8 @@
     "bootstrap": "node --disable-warning=ExperimentalWarning src/cli/bootstrap.js",
     "superadmin:reset": "node --disable-warning=ExperimentalWarning src/cli/superadmin-reset.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
-    "demo": "node --disable-warning=ExperimentalWarning src/cli/demo.js"
+    "demo": "node --disable-warning=ExperimentalWarning src/cli/demo.js",
+    "verify": "node --disable-warning=ExperimentalWarning src/cli/verify.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

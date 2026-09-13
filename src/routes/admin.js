@@ -14,6 +14,7 @@ import { NOTIFICATION_DEFAULTS, dispatchDueNotifications, notificationSettings, 
 import { seedSeason } from '../db/seed.js';
 import { createLocalProvider } from '../services/football/local.js';
 import { broadcastLive } from '../services/live.js';
+import { verifyAllLeagues } from '../services/verification.js';
 import { publicUser } from './auth.js';
 
 export const adminRouter = express.Router();
@@ -43,6 +44,7 @@ adminRouter.get('/overview', wrap(async (req, res) => {
       active: overview.active,
       nextOpenRound: context.nextOpenRound,
       entryClosed: context.entryClosed,
+      configLocked: context.configLocked,
     };
   });
   res.json({ counts, leagues, settings: notificationSettings() });
@@ -207,7 +209,9 @@ adminRouter.patch('/leagues/:leagueId', wrap(async (req, res) => {
     body.status ?? league.status,
     league.id,
   );
-  audit(req.user.id, 'admin.league_updated', 'league', league.id, body);
+  audit(req.user.id, 'admin.league_updated', 'league', league.id, {
+    ...body, supersededLock: Boolean(league.config_locked_at),
+  });
   res.json({ league: get('SELECT * FROM leagues WHERE id = ?', league.id) });
 }));
 
@@ -462,6 +466,26 @@ async function transactionAsyncSafe(userId, codes) {
     }
   });
 }
+
+/** Cross-check every league on the platform in one sweep. */
+adminRouter.get('/verification', wrap(async (req, res) => {
+  const reports = verifyAllLeagues();
+  res.json({
+    checkedAt: nowIso(),
+    leagues: reports.map((report) => ({
+      leagueId: report.leagueId,
+      leagueName: report.leagueName,
+      ok: report.ok,
+      errors: report.errorCount,
+      warnings: report.warningCount,
+      picksChecked: report.picksChecked,
+      entriesChecked: report.entriesChecked,
+      roundsSettled: report.roundsSettled,
+      issues: report.issues.slice(0, 25),
+    })),
+    failing: reports.filter((report) => !report.ok).length,
+  });
+}));
 
 adminRouter.get('/audit', wrap(async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);

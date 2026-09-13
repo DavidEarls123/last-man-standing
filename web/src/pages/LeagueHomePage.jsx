@@ -118,6 +118,19 @@ export default function LeagueHomePage() {
         </Card>
       )}
 
+      {league.verification && (
+        <div className="small" style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '0 2px' }}>
+          <span className={`badge ${league.verification.ok ? 'badge-in' : 'badge-out'}`}>
+            {league.verification.ok ? '✓ Checked' : '! Needs checking'}
+          </span>
+          <span className="tiny muted">
+            {league.verification.ok
+              ? `Every one of ${league.verification.picksChecked} picks re-checked against the fixtures.`
+              : `${league.verification.errors} result${league.verification.errors === 1 ? '' : 's'} do not match the fixtures — the admins have been told.`}
+          </span>
+        </div>
+      )}
+
       <Card title="Round by round">
         {overview.rounds.length === 0 && <Empty>Nothing settled yet — check back after the first round.</Empty>}
         <div className="list">

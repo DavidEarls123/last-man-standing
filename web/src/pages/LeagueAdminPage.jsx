@@ -5,6 +5,8 @@ import { Alert, Card, Empty, Spinner, Toast, useAsync } from '../components/ui.j
 import { formatShort } from '../lib/format.js';
 import EntryOverride from '../components/EntryOverride.jsx';
 import LeagueBranding from '../components/LeagueBranding.jsx';
+import SetupLock from '../components/SetupLock.jsx';
+import VerificationCard from '../components/VerificationCard.jsx';
 
 export default function LeagueAdminPage() {
   const league = useLeague();
@@ -46,6 +48,10 @@ export default function LeagueAdminPage() {
       <Alert tone="error">{actionError}</Alert>
 
       <LeagueBranding league={league.league} onSaved={() => league.reload()} setToast={setToast} />
+
+      <SetupLock league={league.league} onChange={() => league.reload()} setToast={setToast} />
+
+      <VerificationCard leagueId={leagueId} setToast={setToast} />
 
       <Card title="Invite players">
         <div className="code-box">{data.joinCode}</div>
