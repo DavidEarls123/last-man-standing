@@ -138,6 +138,7 @@ export default function LeagueHomePage() {
         </div>
       )}
 
+      <div className="columns">
       <Card title="Round by round">
         {overview.rounds.length === 0 && <Empty>Nothing settled yet — check back after the first round.</Empty>}
         <div className="list">
@@ -183,6 +184,7 @@ export default function LeagueHomePage() {
           ))}
         </div>
       </Card>
+      </div>
     </div>
   );
 }

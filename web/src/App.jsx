@@ -16,24 +16,31 @@ function TopBar() {
   const { user, signOut } = useAuth();
   return (
     <header className="topbar">
-      <NavLink to="/" className="brand">
-        <span className="brand-mark" aria-hidden="true">⚽</span>
-        <span>Last Man Standing</span>
-      </NavLink>
-      <div className="topbar-spacer" />
-      {user && (
-        <>
-          {user.isSuperAdmin && (
-            <NavLink to="/admin" className="btn btn-sm btn-ghost">Platform</NavLink>
-          )}
-          <button type="button" className="btn-sm btn-ghost" onClick={signOut}>Sign out</button>
-        </>
-      )}
+      <div className="topbar-inner">
+        <NavLink to="/" className="brand">
+          <span className="brand-mark" aria-hidden="true">⚽</span>
+          <span>Last Man Standing</span>
+        </NavLink>
+        <div className="topbar-spacer" />
+        {user && (
+          <>
+            <NavLink to="/" className="btn btn-sm btn-ghost desktop-only">My leagues</NavLink>
+            {user.isSuperAdmin && (
+              <NavLink to="/admin" className="btn btn-sm btn-ghost">Platform</NavLink>
+            )}
+            <button type="button" className="btn-sm btn-ghost" onClick={signOut}>Sign out</button>
+          </>
+        )}
+      </div>
     </header>
   );
 }
 
-function LeagueTabs() {
+/**
+ * One nav element, two shapes: a thumb-friendly bar pinned to the bottom on a
+ * phone, and a row of pills under the header on a wider screen.
+ */
+function LeagueNav() {
   const { league } = useLeague();
   if (!league) return null;
   const base = `/leagues/${league.id}`;
@@ -41,7 +48,8 @@ function LeagueTabs() {
   const isAdmin = league.role === 'admin' || league.role === 'super_admin';
 
   return (
-    <nav className="tabbar">
+    <nav className="leaguenav" aria-label="League sections">
+      <div className="leaguenav-inner">
       <NavLink to={base} end>
         <span className="tab-icon" aria-hidden="true">🏠</span>
         Home
@@ -66,6 +74,7 @@ function LeagueTabs() {
         <span className="tab-icon" aria-hidden="true">👤</span>
         Account
       </NavLink>
+      </div>
     </nav>
   );
 }
@@ -74,6 +83,7 @@ function LeagueShell() {
   const { leagueId } = useParams();
   return (
     <LeagueProvider leagueId={Number(leagueId)}>
+      <LeagueNav />
       <div className="content">
         <Routes>
           <Route index element={<LeagueHomePage />} />
@@ -83,7 +93,6 @@ function LeagueShell() {
           <Route path="*" element={<Navigate to="." replace />} />
         </Routes>
       </div>
-      <LeagueTabs />
     </LeagueProvider>
   );
 }

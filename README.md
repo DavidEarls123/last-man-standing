@@ -35,6 +35,20 @@ even if both were bypassed. A pick voided by a called-off fixture is the one exc
 club was never really used, so it returns to the pool, and a fixture that comes back on only
 restores the original pick if the club has not been spent elsewhere since.
 
+## Phone and desktop
+
+One build serves both, and the layout changes shape rather than just shrinking:
+
+- **On a phone** the league sections sit in a thumb-friendly bar pinned to the bottom, cards
+  stack in one column, and the club picker is two across. Inputs are 16px so iOS does not zoom
+  on focus, and the bar clears the home indicator on notched handsets.
+- **On a tablet or desktop** that bar becomes a row of pills under the header, content widens
+  to a readable 1080px, cards pair up two to a row, the club picker goes to four or five
+  across, and single-line fields stop stretching the full width of the screen.
+
+Nothing scrolls sideways at any width from 360px up — there is a Playwright check for that
+across every screen, since a stray wide element is the usual way responsive layouts break.
+
 ## Roles
 
 - **Super admin** — one per platform (you). Creates leagues, appoints each league's admin,

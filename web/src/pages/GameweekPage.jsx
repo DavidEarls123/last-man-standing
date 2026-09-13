@@ -88,6 +88,7 @@ export default function GameweekPage() {
       <Alert tone="error">{error}</Alert>
       {!live && !error && <Spinner />}
 
+      <div className="columns">
       {popularity && (
         <Card title={`Most picked · ${popularity.totalPicks} pick${popularity.totalPicks === 1 ? '' : 's'}`}>
           {popularity.teams.length === 0 && <Empty>Nobody has picked for this round yet.</Empty>}
@@ -142,6 +143,7 @@ export default function GameweekPage() {
           </p>
         </Card>
       )}
+      </div>
 
       {others && (
         <Card title="Who picked what">

@@ -24,6 +24,7 @@
   --warn: #f0a202;
   --info: #2f6df6;
 
+  --page: 1080px;
   --radius: 18px;
   --radius-sm: 12px;
   --radius-xs: 9px;
@@ -38,6 +39,9 @@ html, body, #root { height: 100%; }
 body {
   margin: 0;
   color: var(--ink);
+  /* Stop mobile Safari inflating text in landscape, and grey flashes on tap. */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
   background:
     radial-gradient(900px 420px at 12% -6%, color-mix(in srgb, var(--brand) 16%, transparent) 0%, transparent 62%),
     radial-gradient(760px 380px at 92% 2%, color-mix(in srgb, var(--brand-2) 14%, transparent) 0%, transparent 58%),
@@ -61,14 +65,19 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 25;
+  background: color-mix(in srgb, var(--paper) 86%, white);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-inner {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 11px 16px;
-  background: color-mix(in srgb, var(--paper) 86%, white);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
+  width: 100%;
+  max-width: var(--page);
+  margin: 0 auto;
 }
 .topbar button, .topbar .btn { white-space: nowrap; padding: 7px 12px; font-size: 0.84rem; }
 
@@ -76,12 +85,16 @@ h3 { font-size: 0.98rem; font-weight: 700; }
   display: flex;
   align-items: center;
   gap: 9px;
+  min-width: 0;                 /* so a long wordmark shrinks instead of pushing */
   font-weight: 800;
   letter-spacing: -0.025em;
   text-decoration: none;
   color: var(--ink);
   white-space: nowrap;
 }
+.brand span:not(.brand-mark) { overflow: hidden; text-overflow: ellipsis; }
+.brand-mark { flex: none; }
+.topbar-inner > .btn, .topbar-inner > button { flex: none; }
 .brand-mark {
   width: 30px; height: 30px;
   display: grid; place-items: center;
@@ -95,10 +108,16 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .content {
   flex: 1;
   width: 100%;
-  max-width: 940px;
+  max-width: var(--page);
   margin: 0 auto;
   padding: 18px 16px 104px;
 }
+
+/* Two columns of cards where there is room for them. */
+.columns { display: grid; gap: 14px; align-items: start; }
+
+/* Two classes, so this beats the .btn display rule further down. */
+.topbar .desktop-only { display: none; }
 
 .stack { display: grid; gap: 14px; }
 /* Grid items default to a min-content floor, which lets wide children push the
@@ -115,10 +134,16 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 
 @media (max-width: 430px) {
   h1 { font-size: 1.4rem; }
-  .brand span:not(.brand-mark) { font-size: 0.92rem; }
-  .topbar { gap: 8px; padding: 10px 12px; }
+  .brand span:not(.brand-mark) { font-size: 0.9rem; }
+  .topbar-inner { gap: 7px; padding: 10px 12px; }
+  .topbar button, .topbar .btn { padding: 7px 10px; font-size: 0.8rem; }
   .content { padding: 14px 14px 104px; }
   .grid-auto { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+
+/* On the narrowest phones the badge carries the branding on its own. */
+@media (max-width: 380px) {
+  .brand span:not(.brand-mark) { display: none; }
 }
 
 /* ----------------------------------------------------------------- cards -- */
@@ -228,6 +253,7 @@ label.field { display: grid; gap: 6px; font-size: 0.8rem; font-weight: 650; colo
 
 input, select, textarea {
   font: inherit;
+  font-size: max(16px, 1rem);   /* below 16px iOS zooms the page on focus */
   color: var(--ink);
   background: #fff;
   border: 1.5px solid var(--line-strong);
@@ -395,17 +421,17 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
 
 /* ------------------------------------------------------------------ tabs -- */
 
-.tabbar {
+.leaguenav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 30;
-  display: flex;
   background: color-mix(in srgb, var(--card) 94%, transparent);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.tabbar a {
+.leaguenav-inner { display: flex; width: 100%; max-width: var(--page); margin: 0 auto; }
+.leaguenav a {
   flex: 1;
   display: grid;
   gap: 2px;
@@ -416,9 +442,9 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
   font-size: 0.68rem;
   font-weight: 750;
 }
-.tabbar a.active { color: var(--brand); }
-.tabbar a.active .tab-icon { transform: translateY(-1px) scale(1.12); }
-.tabbar .tab-icon { font-size: 1.2rem; line-height: 1; transition: transform 0.15s ease; }
+.leaguenav a.active { color: var(--brand); }
+.leaguenav a.active .tab-icon { transform: translateY(-1px) scale(1.12); }
+.leaguenav .tab-icon { font-size: 1.2rem; line-height: 1; transition: transform 0.15s ease; }
 
 .segmented {
   display: flex;
@@ -517,6 +543,71 @@ th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; colo
   font-size: 0.88rem;
   box-shadow: var(--shadow-lift);
 }
+
+/* ---------------------------------------------------- bigger screens ----- */
+
+@media (min-width: 720px) {
+  .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .content { padding: 22px 24px 104px; }
+  .topbar-inner { padding: 12px 24px; }
+
+  /* A single-line field stretched across a desktop is hard to read and to aim at. */
+  label.field > input, label.field > select { max-width: 520px; }
+
+  /* Round tabs should sit together rather than spread across the whole bar. */
+  .segmented { justify-content: flex-start; }
+  .segmented button { flex: 0 1 auto; }
+}
+
+@media (min-width: 900px) {
+  h1 { font-size: 1.75rem; }
+
+  /* The thumb bar becomes a row of pills below the header. */
+  .leaguenav {
+    position: sticky;
+    top: 55px;
+    bottom: auto;
+    z-index: 24;
+    background: color-mix(in srgb, var(--paper) 88%, white);
+    border-top: none;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0;
+  }
+  .leaguenav-inner { gap: 6px; padding: 8px 24px; }
+  .leaguenav a {
+    flex: 0 0 auto;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
+  .leaguenav a:hover { background: var(--sunken); color: var(--ink); }
+  .leaguenav a.active {
+    background: color-mix(in srgb, var(--brand) 12%, white);
+    color: color-mix(in srgb, var(--brand) 78%, black);
+  }
+  .leaguenav .tab-icon { font-size: 1rem; }
+
+  .content { padding-bottom: 48px; }
+  .topbar .desktop-only { display: inline-flex; }
+  .toast { bottom: 28px; }
+
+  /* A phone-width column of clubs looks lost on a wide screen. */
+  .grid-auto { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  .auth-card { max-width: 460px; }
+}
+
+@media (min-width: 1200px) {
+  .league-head { padding: 20px 22px; }
+  .league-crest { width: 64px; height: 64px; }
+}
+
+/* Keyboard users need to see where they are, mouse users should not be shouted at. */
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 45%, transparent); outline-offset: 2px; }
+button:focus:not(:focus-visible) { outline: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
