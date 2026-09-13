@@ -4,6 +4,9 @@ import { Alert, Card } from './ui.jsx';
 
 const MAX_DIMENSION = 256;
 
+/** A league asks for between 1 and 10 opening picks — nothing else is offered. */
+const OPENING_PICK_CHOICES = Array.from({ length: 10 }, (_, index) => index + 1);
+
 /**
  * Shrinks a chosen crest to a small square PNG in the browser, so uploads stay
  * well inside the server's 256KB limit whatever the phone camera produced.
@@ -39,7 +42,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
     tagline: league.tagline ?? '',
     primaryColor: league.primaryColor,
     secondaryColor: league.secondaryColor,
-    advancePicks: league.advancePicks,
+    openingPicks: league.openingPicks,
   });
   const [logo, setLogo] = useState(undefined); // undefined = unchanged, null = remove
   const [preview, setPreview] = useState(league.logoUrl);
@@ -72,7 +75,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         tagline: form.tagline || null,
         primaryColor: form.primaryColor,
         secondaryColor: form.secondaryColor,
-        advancePicks: Number(form.advancePicks),
+        openingPicks: Number(form.openingPicks),
         ...(logo === undefined ? {} : { logo }),
       });
       setLogo(undefined);
@@ -161,14 +164,17 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         </div>
 
         <label className="field">
-          How many rounds ahead entrants may pick
-          <input
-            type="number" min="1" max="10" value={form.advancePicks}
-            onChange={update('advancePicks')} disabled={readOnly}
-          />
+          Opening picks
+          <select value={form.openingPicks} onChange={update('openingPicks')} disabled={readOnly}>
+            {OPENING_PICK_CHOICES.map((count) => (
+              <option key={count} value={count}>
+                {count === 1 ? '1 — straight into week by week' : `${count} rounds up front`}
+              </option>
+            ))}
+          </select>
           <span className="tiny dim">
-            1 means the round coming up only. Higher lets people plan ahead if they want to —
-            nobody ever has to pick further than the next deadline.
+            Rounds every entrant must pick before the competition kicks off. After that it is one
+            pick per round, whatever you choose here.
           </span>
         </label>
 

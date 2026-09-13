@@ -2,6 +2,7 @@ import { all, get, run, getSetting } from '../db/index.js';
 import { config } from '../config.js';
 import { humaniseDuration, nowIso } from '../lib/time.js';
 import { leagueContext } from './leagues.js';
+import { outstandingOpeningRounds } from '../domain/rules.js';
 
 export const NOTIFICATION_DEFAULTS = Object.freeze({
   enabled: true,
@@ -88,20 +89,33 @@ export function queueDeadlineReminders() {
         const hasPick = get(
           'SELECT 1 FROM picks WHERE entry_id = ? AND round_number = ?', entry.id, round,
         );
-        if (hasPick && !finalCall) continue;
+        const owesOpening = round === 1 && league.opening_picks > 1 && get(
+          `SELECT COUNT(*) AS count FROM picks WHERE entry_id = ? AND round_number <= ?`,
+          entry.id, league.opening_picks,
+        ).count < league.opening_picks;
+        if (hasPick && !owesOpening && !finalCall) continue;
 
-        const subject = hasPick
+        // Before kick off the whole opening block is due, not just round 1.
+        const owed = round === 1 && league.opening_picks > 1
+          ? outstandingOpeningRounds(
+              all('SELECT round_number FROM picks WHERE entry_id = ?', entry.id), league.opening_picks,
+            )
+          : [];
+        const what = owed.length > 1
+          ? `your opening picks (rounds ${owed.join(', ')})`
+          : `your round ${round} pick`;
+        const subject = hasPick && owed.length === 0
           ? `${league.name}: round ${round} deadline in ${humaniseDuration(offset)}`
-          : `${league.name}: your round ${round} pick is due in ${humaniseDuration(offset)}`;
+          : `${league.name}: ${what} due in ${humaniseDuration(offset)}`;
         const consequence = league.no_pick_policy === 'eliminate'
           ? 'or you are out.'
           : 'or you will be given the next club you have not used, alphabetically.';
         const body = [
           `Hi ${entry.display_name},`,
           '',
-          hasPick
+          hasPick && owed.length === 0
             ? `Round ${round} of ${league.name} locks in ${humaniseDuration(offset)}. Your pick is in — good luck.`
-            : `You have not picked for round ${round} of ${league.name} yet. Pick within ${humaniseDuration(offset)} ${consequence}`,
+            : `${league.name} still needs ${what}. Get it in within ${humaniseDuration(offset)} ${consequence}`,
           '',
           `Deadline: ${roundInfo.deadline} — the first kick off of the gameweek, the same for everyone.`,
           `${config.publicUrl}/leagues/${league.id}`,
@@ -143,7 +157,7 @@ export function queueAutoPickNotices(league, items) {
   const settings = notificationSettings();
   if (!settings.resultNotices) return 0;
   let queued = 0;
-  for (const { entry, round, teamName, deadline } of items) {
+  for (const { entry, round, teamName, deadline, opening } of items) {
     const user = userForEntry(entry.id);
     if (!user) continue;
     queued += enqueue({
@@ -154,11 +168,14 @@ export function queueAutoPickNotices(league, items) {
       body: [
         `Hi ${user.display_name},`,
         '',
-        `Round ${round} closed${deadline ? ` at ${deadline}` : ''} without a pick from you, so the league rules`,
-        `handed you the next club you had not used, alphabetically: ${teamName}.`,
+        opening
+          ? `Entries closed before your opening picks were all in, so the league rules handed you the`
+          : `Round ${round} closed${deadline ? ` at ${deadline}` : ''} without a pick from you, so the league rules handed you the`,
+        `next club you had not used, alphabetically: ${teamName} for round ${round}.`,
+        opening ? 'You can still change it any time before that gameweek kicks off.' : '',
         '',
         `${config.publicUrl}/leagues/${league.id}`,
-      ].join('\n'),
+      ].filter(Boolean).join('\n'),
       scheduledFor: nowIso(),
       settings,
     });

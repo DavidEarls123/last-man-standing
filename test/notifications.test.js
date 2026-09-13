@@ -44,6 +44,7 @@ test('deadline reminders follow the offsets the super admin sets', () => {
   const owner = makeUser('owner');
   const league = createLeague({
     name: 'Reminders', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
+    openingPicks: 3,
   });
   const player = makeUser('reminderplayer');
   joinLeague(league, player.id);
@@ -57,17 +58,34 @@ test('deadline reminders follow the offsets the super admin sets', () => {
     .map((row) => Math.round((deadline - new Date(row.scheduled_for).getTime()) / 60_000))
     .sort((a, b) => b - a);
   assert.deepEqual(offsets, [2880, 60]);
-  assert.match(queued[0].subject, /round 1 pick is due/i);
+  assert.match(queued[0].subject, /opening picks \(rounds 1, 2, 3\)/i,
+    'before kick off the whole opening block is chased, not just round 1');
 
   // Running again must not duplicate them.
   notifications.queueDeadlineReminders();
   assert.equal(all('SELECT * FROM notifications WHERE user_id = ?', player.id).length, 2);
 });
 
+test('a league with no opening block just chases the round coming up', () => {
+  const owner = makeUser('owner1b');
+  const league = createLeague({
+    name: 'Week by week', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
+    openingPicks: 1,
+  });
+  const player = makeUser('weekly');
+  joinLeague(league, player.id);
+
+  notifications.queueDeadlineReminders();
+  const queued = all('SELECT * FROM notifications WHERE user_id = ?', player.id);
+  assert.ok(queued.length > 0);
+  assert.match(queued[0].subject, /round 1 pick due/i);
+});
+
 test('a reminder is dropped if the player picks before it is due', async () => {
   const owner = makeUser('owner2');
   const league = createLeague({
     name: 'Stale reminders', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
+    openingPicks: 1,
   });
   const player = makeUser('procrastinator');
   const entry = joinLeague(league, player.id);

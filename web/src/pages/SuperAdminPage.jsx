@@ -101,7 +101,7 @@ function LeaguesSection({ setToast, setError }) {
   const seasons = useAsync(() => api.get('/api/admin/seasons'));
   const overview = useAsync(() => api.get('/api/admin/overview'));
   const [form, setForm] = useState({
-    name: '', startGameweek: 1, adminEmail: '', advancePicks: 1,
+    name: '', startGameweek: 1, adminEmail: '', openingPicks: 3,
     drawPolicy: 'eliminate', voidPolicy: 'reselect', noPickPolicy: 'auto_alphabetical', seasonId: '',
   });
 
@@ -121,7 +121,7 @@ function LeaguesSection({ setToast, setError }) {
         seasonId: Number(form.seasonId),
         startGameweek: Number(form.startGameweek),
         adminEmail: form.adminEmail || undefined,
-        advancePicks: Number(form.advancePicks),
+        openingPicks: Number(form.openingPicks),
         drawPolicy: form.drawPolicy,
         voidPolicy: form.voidPolicy,
         noPickPolicy: form.noPickPolicy,
@@ -166,9 +166,13 @@ function LeaguesSection({ setToast, setError }) {
           </label>
           <div className="grid-2">
             <label className="field">
-              Rounds pickable ahead
-              <input type="number" min="1" max="10" value={form.advancePicks}
-                onChange={(event) => setForm({ ...form, advancePicks: event.target.value })} />
+              Opening picks
+              <select value={form.openingPicks}
+                onChange={(event) => setForm({ ...form, openingPicks: event.target.value })}>
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={count}>{count}</option>
+                ))}
+              </select>
             </label>
             <label className="field">
               A draw

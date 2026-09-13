@@ -10,6 +10,10 @@
  *               round 21 opens all 20 teams up again.
  */
 
+/** A league may ask for between 1 and 10 opening picks. */
+export const OPENING_PICKS_MIN = 1;
+export const OPENING_PICKS_MAX = 10;
+
 export const DEFAULT_POLICIES = Object.freeze({
   // A draw is not a win, so by default it knocks you out.
   drawPolicy: 'eliminate',
@@ -124,10 +128,14 @@ export function settlePick(fixture, teamId, policies = DEFAULT_POLICIES, context
 /**
  * Validate a proposed pick before it is written.
  *
- * There is one deadline per round and it is the same for everybody: the first
- * kick off of that gameweek. Nobody has to pick further ahead than the round
- * coming up, though a league may let entrants get ahead of themselves by a few
- * rounds if they want to.
+ * Two phases, and only two:
+ *   - The opening block. A league asks for its first N rounds before the
+ *     competition starts. Each of those stays editable until its own gameweek
+ *     kicks off, but all N have to be in by the entry deadline.
+ *   - Everything after. One pick per round, for the round coming up only.
+ *
+ * Either way the deadline for a round is the first kick off of that gameweek,
+ * identical for everyone, and once it passes the round is shut.
  *
  * @returns {{ok:true}|{ok:false, code:string, message:string}}
  */
@@ -140,10 +148,10 @@ export function validatePick({
   teamId,
   teamPlaysInRound,
   deadlinePassed,
-  // The round currently open for picking: the first whose deadline is still ahead.
+  // The first round whose deadline is still ahead of us.
   nextOpenRound,
-  // How many rounds, counting that one, an entrant may pick for. 1 = this round only.
-  advancePicks = 1,
+  // Size of the opening block this league asks for, at the start only.
+  openingPicks = 1,
   // True when this round's pick was voided by a called-off fixture and the
   // entrant is choosing a replacement, which reopens an expired deadline.
   reselecting = false,
@@ -168,14 +176,14 @@ export function validatePick({
     if (round < nextOpenRound) {
       return { ok: false, code: 'round_closed', message: `Round ${round} is already under way.` };
     }
-    const furthest = nextOpenRound + Math.max(1, advancePicks) - 1;
+    const furthest = furthestPickableRound(nextOpenRound, openingPicks);
     if (round > furthest) {
       return {
         ok: false,
         code: 'too_far_ahead',
         message: furthest === nextOpenRound
           ? `You can only pick for round ${nextOpenRound} at the moment.`
-          : `You can pick up to round ${furthest} at the moment.`,
+          : `Only the opening ${furthest} rounds are open at the moment.`,
       };
     }
   }
@@ -198,12 +206,29 @@ export function validatePick({
 }
 
 /**
- * The rounds an entrant may pick for right now: the one coming up, plus however
- * far ahead the league lets them work.
+ * The last round currently open. While the opening block is still running that
+ * is the end of the block; afterwards it is simply the round coming up.
  */
-export function openPickRounds(nextOpenRound, advancePicks = 1) {
+export function furthestPickableRound(nextOpenRound, openingPicks = 1) {
+  if (!nextOpenRound) return 0;
+  return Math.max(nextOpenRound, Math.min(Math.max(1, openingPicks), OPENING_PICKS_MAX));
+}
+
+/** Every round open for picking right now, in order. */
+export function openPickRounds(nextOpenRound, openingPicks = 1) {
   if (!nextOpenRound) return [];
-  return Array.from({ length: Math.max(1, advancePicks) }, (_, index) => nextOpenRound + index);
+  const furthest = furthestPickableRound(nextOpenRound, openingPicks);
+  return Array.from({ length: furthest - nextOpenRound + 1 }, (_, index) => nextOpenRound + index);
+}
+
+/**
+ * Rounds of the opening block an entry still owes, given the picks it has made.
+ * Empty once the block is complete.
+ */
+export function outstandingOpeningRounds(usedPicks, openingPicks = 1) {
+  const made = new Set(usedPicks.map((pick) => pick.round_number));
+  return Array.from({ length: Math.max(1, openingPicks) }, (_, index) => index + 1)
+    .filter((round) => !made.has(round));
 }
 
 /**

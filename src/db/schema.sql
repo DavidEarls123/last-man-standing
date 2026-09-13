@@ -87,9 +87,9 @@ CREATE TABLE IF NOT EXISTS leagues (
   status             TEXT NOT NULL DEFAULT 'open',  -- open | active | completed | archived
   admin_user_id      INTEGER REFERENCES users(id),  -- the single league admin
   created_by_user_id INTEGER NOT NULL REFERENCES users(id),
-  -- How many rounds ahead an entrant MAY pick. 1 = just the round coming up;
-  -- nobody is ever obliged to pick further ahead than that.
-  advance_picks      INTEGER NOT NULL DEFAULT 1,
+  -- Rounds every entrant must pick before the competition starts, 1 to 10.
+  -- A one-off at the start: after that it is one pick per round.
+  opening_picks      INTEGER NOT NULL DEFAULT 3,
   draw_policy        TEXT NOT NULL DEFAULT 'eliminate',        -- eliminate | survive
   void_policy        TEXT NOT NULL DEFAULT 'reselect',         -- reselect | eliminate | survive
   no_pick_policy     TEXT NOT NULL DEFAULT 'auto_alphabetical',-- auto_alphabetical | eliminate

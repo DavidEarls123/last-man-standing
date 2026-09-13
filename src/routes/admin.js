@@ -139,7 +139,7 @@ const leagueSchema = z.object({
   startGameweek: z.number().int().min(1).max(38),
   adminUserId: z.number().int().nullable().optional(),
   adminEmail: emailSchema.optional(),
-  advancePicks: z.number().int().min(1).max(10).default(1),
+  openingPicks: z.number().int().min(1).max(10).default(3),
   drawPolicy: z.enum(['eliminate', 'survive']).default('eliminate'),
   voidPolicy: z.enum(['reselect', 'eliminate', 'survive']).default('reselect'),
   noPickPolicy: z.enum(['auto_alphabetical', 'eliminate']).default('auto_alphabetical'),
@@ -166,7 +166,7 @@ adminRouter.post('/leagues', wrap(async (req, res) => {
     startGameweek: body.startGameweek,
     adminUserId,
     createdBy: req.user.id,
-    advancePicks: body.advancePicks,
+    openingPicks: body.openingPicks,
     drawPolicy: body.drawPolicy,
     voidPolicy: body.voidPolicy,
     noPickPolicy: body.noPickPolicy,
@@ -195,13 +195,13 @@ adminRouter.patch('/leagues/:leagueId', wrap(async (req, res) => {
   }
 
   run(
-    `UPDATE leagues SET name = ?, start_gameweek = ?, admin_user_id = ?, advance_picks = ?,
+    `UPDATE leagues SET name = ?, start_gameweek = ?, admin_user_id = ?, opening_picks = ?,
             draw_policy = ?, void_policy = ?, no_pick_policy = ?, max_entries = ?, status = ?
      WHERE id = ?`,
     body.name ?? league.name,
     body.startGameweek ?? league.start_gameweek,
     adminUserId,
-    body.advancePicks ?? league.advance_picks,
+    body.openingPicks ?? league.opening_picks,
     body.drawPolicy ?? league.draw_policy,
     body.voidPolicy ?? league.void_policy,
     body.noPickPolicy ?? league.no_pick_policy,

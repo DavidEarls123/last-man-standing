@@ -11,13 +11,13 @@ must be in before the very first kick off.
 | Rule | Behaviour |
 | --- | --- |
 | Entry | Anyone with the join code can enter until the **first kick off of the league's start gameweek**. After that the league is sealed. |
-| Picking | One pick per round, and nobody has to pick further ahead than the round coming up. Picks can be changed freely right up to the deadline. |
-| The deadline | The **first kick off of that gameweek**, identical for everyone. Once it passes the round is shut: no late picks, no changes. |
-| Picking ahead | Optional, and only if the league allows it — the admin sets how many rounds ahead entrants *may* pick (1 by default, meaning just the next one). It is never an obligation. |
+| Opening picks | A league opens by asking for its first **N** rounds up front, all due before the competition kicks off. The league admin picks N, between **1 and 10**; at 1 the competition simply starts week by week. This happens once, at the start — it is not a rolling window. |
+| Picking after that | One pick per round, for the round coming up. Nothing further ahead is open. |
+| The deadline | The **first kick off of that gameweek**, identical for everyone. Once it passes the round is shut: no late picks, no changes. Opening picks each stay changeable until their own gameweek kicks off. |
 | Team reuse | A club can be used **once per cycle of 20**. Survive all twenty rounds and every club is available again from round 21. |
 | Winning | Your pick must **win**. A draw is not a win. |
 | Elimination | One bad round ends your run. Eliminated entrants keep full read access and can follow the league to the end. |
-| Missed pick | When the deadline passes, anyone without a pick is handed the **next club they have not used, alphabetically** — one that still has a game to play. (A league can be set to eliminate instead.) |
+| Missed pick | When a deadline passes, anyone without a pick is handed the **next club they have not used, alphabetically** — one that still has a game to play. The same applies to any opening picks missing when entries close. (A league can be set to eliminate instead.) |
 | Postponed fixtures | Your pick is voided and you are **told to pick again** from whatever in that gameweek has not kicked off yet. The called-off club goes back in your pool. Nothing left to switch to? The round is void and you go through. |
 | Special circumstances | The league admin can put an eliminated player back in, with a reason that is recorded and shown. |
 | The last one standing | Wins. If every remaining entrant goes out in the same round, they share the win. |
@@ -32,10 +32,10 @@ for you rather than dropping you — see *Missed pick* above.
 
 - **Super admin** — one per platform (you). Creates leagues, appoints each league's admin,
   can amend anything: results, picks, entries, league settings, accounts, notification timings.
-- **League admin** — exactly one per league. Names and brands the league, sets how far ahead
-  entrants may pick, adds players, shares the join link, removes players, puts an eliminated
-  player back in, messages entrants. Cannot touch results, and cannot change the setup once it
-  is locked.
+- **League admin** — exactly one per league. Names and brands the league, sets the size of the
+  opening block, adds players, shares the join link, removes players, puts an eliminated player
+  back in, messages entrants. Cannot touch results, and cannot change the setup once it is
+  locked.
 - **Player** — one account, any number of leagues. Joins with a code, makes picks, follows
   along after elimination.
 
@@ -92,7 +92,7 @@ Under **Manage**, a league admin sets:
   the active tab — so entrants in several leagues can tell them apart at a glance
 - a **crest**, uploaded from the phone or desktop and shrunk to 256px in the browser
   before it is sent (PNG, JPEG, WebP, GIF or SVG, under 256KB)
-- how many **rounds ahead** entrants may pick, if they like to plan (1 = the next round only)
+- the size of the **opening block**: 1 to 10 rounds, all due before the first kick off
 
 Colours and crest show up on the invite preview too, so a join link looks like the league.
 

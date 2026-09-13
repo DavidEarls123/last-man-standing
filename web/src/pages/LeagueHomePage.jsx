@@ -42,7 +42,16 @@ export default function LeagueHomePage() {
         </Alert>
       ))}
 
-      {needsPick && (
+      {isPlayer && !isOut && league.owedOpeningRounds?.length > 0 && (
+        <Alert tone="warn">
+          This league opens with {league.league.openingPicks} picks. You still owe{' '}
+          round{league.owedOpeningRounds.length === 1 ? '' : 's'} {league.owedOpeningRounds.join(', ')},
+          due before the first kick off — <Countdown deadline={league.league.entryDeadline} /> left.{' '}
+          <Link to={`/leagues/${league.league.id}/pick`}>Make your picks</Link>
+        </Alert>
+      )}
+
+      {needsPick && !league.owedOpeningRounds?.length && (
         <Alert tone="warn">
           Round {nextRound} closes in <Countdown deadline={nextDeadline} /> and you have not picked yet.
           {league.league.noPickPolicy === 'eliminate'

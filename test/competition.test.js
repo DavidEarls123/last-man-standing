@@ -179,10 +179,10 @@ test('by default a missed deadline is settled with the next club alphabetically'
 test('a team cannot be reused inside a cycle, and unlocks in the next one', () => {
   const owner = makeUser('super4');
   const league = createLeague({
-    // Two rounds open at once, so the reuse rule can be exercised through the
+    // An opening block of two, so the reuse rule can be exercised through the
     // normal validated path rather than an override.
     name: 'Cycles', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
-    advancePicks: 2,
+    openingPicks: 2,
   });
   const pool = all('SELECT * FROM teams WHERE season_id = ? ORDER BY id', futureSeason.seasonId);
   const entry = joinLeague(league, makeUser('cyclist').id);
@@ -196,8 +196,8 @@ test('a team cannot be reused inside a cycle, and unlocks in the next one', () =
   );
   assert.throws(
     () => submitPick({ league, entry, round: 3, teamId: pool[1].id, actorUserId: entry.user_id }),
-    /up to round 2/i,
-    'and never further ahead than the league allows',
+    /opening 2 rounds/i,
+    'and never further ahead than the opening block',
   );
 
   // The same team is fine again in round 21 — a fresh cycle of all 20 clubs.
@@ -276,6 +276,7 @@ test('one hard deadline a week: pick before it, or the next club is picked for y
   const owner = makeUser('super8');
   const league = createLeague({
     name: 'Weekly', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
+    openingPicks: 1, // no opening block: straight into the weekly rhythm
   });
   const pool = all('SELECT * FROM teams WHERE season_id = ? ORDER BY name', futureSeason.seasonId);
   const keen = joinLeague(league, makeUser('organised').id);
@@ -322,6 +323,60 @@ test('one hard deadline a week: pick before it, or the next club is picked for y
   );
   submitPick({ league, entry: keen, round: 2, teamId: pool[4].id, actorUserId: keen.user_id });
   assert.equal(leagueContext(league).nextOpenRound, 2);
+});
+
+test('the opening block is due up front, and completed for you if it is not', () => {
+  const owner = makeUser('super9');
+  const league = createLeague({
+    name: 'Opening block', seasonId: futureSeason.seasonId, startGameweek: 10, createdBy: owner.id,
+    openingPicks: 3,
+  });
+  const pool = all('SELECT * FROM teams WHERE season_id = ? ORDER BY name', futureSeason.seasonId);
+  const organised = joinLeague(league, makeUser('planner').id);
+  const partial = joinLeague(league, makeUser('halfway').id);
+
+  // All three rounds are open before kick off; a fourth is not.
+  for (const round of [1, 2, 3]) {
+    submitPick({ league, entry: organised, round, teamId: pool[round].id, actorUserId: organised.user_id });
+  }
+  assert.throws(
+    () => submitPick({ league, entry: organised, round: 4, teamId: pool[9].id, actorUserId: organised.user_id }),
+    /opening 3 rounds/i,
+  );
+  submitPick({ league, entry: partial, round: 1, teamId: pool[7].id, actorUserId: partial.user_id });
+
+  // Entries close at the first kick off of gameweek 10.
+  const first = get('SELECT * FROM gameweeks WHERE season_id = ? AND number = 10', futureSeason.seasonId);
+  run("UPDATE gameweeks SET deadline = datetime('now', '-1 minute') WHERE id = ?", first.id);
+
+  applyAutoPicks();
+  const filled = all(
+    `SELECT p.round_number, t.name, p.auto_assigned FROM picks p JOIN teams t ON t.id = p.team_id
+     WHERE p.entry_id = ? ORDER BY p.round_number`,
+    partial.id,
+  );
+  assert.deepEqual(filled.map((pick) => pick.round_number), [1, 2, 3],
+    'the rest of their opening block was filled in');
+  assert.equal(filled[0].auto_assigned, 0, 'their own round 1 pick stands');
+  assert.deepEqual(filled.slice(1).map((pick) => pick.auto_assigned), [1, 1]);
+  // Alphabetical, skipping the club they already used.
+  assert.notEqual(filled[1].name, filled[0].name);
+  assert.ok(filled[1].name.localeCompare(filled[2].name, 'en-GB') < 0);
+
+  // An assigned opening pick can still be changed until that round kicks off.
+  const swap = pool.find((team) => !filled.some((pick) => pick.name === team.name));
+  submitPick({ league, entry: partial, round: 3, teamId: swap.id, actorUserId: partial.user_id });
+  assert.equal(
+    get(`SELECT t.name FROM picks p JOIN teams t ON t.id = p.team_id
+         WHERE p.entry_id = ? AND p.round_number = 3`, partial.id).name,
+    swap.name,
+  );
+
+  // And nothing beyond the block has opened up yet.
+  assert.throws(
+    () => submitPick({ league, entry: organised, round: 4, teamId: pool[9].id, actorUserId: organised.user_id }),
+    /opening 3 rounds/i,
+  );
 });
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

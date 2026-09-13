@@ -30,21 +30,27 @@ ensureColumn('leagues', 'config_locked_at', 'TEXT');
 ensureColumn('leagues', 'config_locked_by', 'INTEGER');
 
 /**
- * `initial_picks` used to mean "rounds you must pick before the first kick off".
- * Entrants now only ever have to pick for the round coming up, so the column
- * became "rounds you MAY pick ahead" and was renamed to match.
+ * The opening-block column has been through two earlier names: `initial_picks`,
+ * then briefly `advance_picks` when it was modelled as a rolling window. It is
+ * now `opening_picks` — rounds every entrant must pick before the competition
+ * starts, and nothing after that.
  */
-(function renameInitialPicks() {
-  const columns = db.prepare('PRAGMA table_info(leagues)').all().map((column) => column.name);
-  if (!columns.includes('initial_picks')) return;
-  if (columns.includes('advance_picks')) {
-    db.exec('ALTER TABLE leagues DROP COLUMN initial_picks');
+(function renameOpeningPicks() {
+  const columns = () => db.prepare('PRAGMA table_info(leagues)').all().map((column) => column.name);
+  const current = columns();
+  if (current.includes('opening_picks')) {
+    for (const stale of ['initial_picks', 'advance_picks']) {
+      if (current.includes(stale)) db.exec(`ALTER TABLE leagues DROP COLUMN ${stale}`);
+    }
     return;
   }
-  db.exec('ALTER TABLE leagues RENAME COLUMN initial_picks TO advance_picks');
-  // The old default of three was an obligation, not an allowance.
-  db.exec('UPDATE leagues SET advance_picks = 1 WHERE advance_picks = 3');
-  console.log('[db] leagues.initial_picks is now advance_picks (rounds you may pick ahead)');
+  const previous = current.includes('advance_picks') ? 'advance_picks'
+    : current.includes('initial_picks') ? 'initial_picks' : null;
+  if (!previous) return;
+  db.exec(`ALTER TABLE leagues RENAME COLUMN ${previous} TO opening_picks`);
+  db.exec('UPDATE leagues SET opening_picks = 1 WHERE opening_picks < 1');
+  db.exec('UPDATE leagues SET opening_picks = 10 WHERE opening_picks > 10');
+  console.log(`[db] leagues.${previous} is now opening_picks (rounds picked before kick off)`);
 })();
 ensureColumn('entries', 'reinstated_at', 'TEXT');
 ensureColumn('entries', 'reinstated_by', 'INTEGER');

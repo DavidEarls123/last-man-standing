@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_POLICIES, availableTeams, cycleForRound, decideWinners, fixtureOutcome,
-  gameweekForRound, nextAlphabeticalTeam, openPickRounds, resultForOutcome, roundForGameweek,
-  settlePick, validatePick,
+  gameweekForRound, nextAlphabeticalTeam, openPickRounds, outstandingOpeningRounds,
+  resultForOutcome, roundForGameweek, settlePick, validatePick,
 } from '../src/domain/rules.js';
 
 const finished = (home, away, homeScore, awayScore) => ({
@@ -74,7 +74,7 @@ test('a voided pick puts that club back in the pool', () => {
 
   const clash = validatePick({
     entryStatus: 'active', leagueStatus: 'active', round: 3, teamCount: 20, usedPicks: picks,
-    teamId: 2, teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 3, advancePicks: 1,
+    teamId: 2, teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 3, openingPicks: 1,
   });
   assert.equal(clash.ok, true);
 });
@@ -103,7 +103,7 @@ test('a missed deadline hands over the next unused club alphabetically', () => {
 test('a replacement pick may be made after the deadline, but only then', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'active', round: 4, teamCount: 20, usedPicks: [],
-    teamId: 9, teamPlaysInRound: true, deadlinePassed: true, nextOpenRound: 5, advancePicks: 1,
+    teamId: 9, teamPlaysInRound: true, deadlinePassed: true, nextOpenRound: 5, openingPicks: 1,
   };
   assert.equal(validatePick(base).code, 'deadline_passed');
   assert.equal(validatePick({ ...base, reselecting: true }).ok, true);
@@ -112,7 +112,7 @@ test('a replacement pick may be made after the deadline, but only then', () => {
 test('validatePick: you pick for the round coming up, and no further', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'open', teamCount: 20, usedPicks: [],
-    teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 4, advancePicks: 1,
+    teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 4, openingPicks: 1,
   };
   assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).ok, true);
 
@@ -124,29 +124,49 @@ test('validatePick: you pick for the round coming up, and no further', () => {
   assert.equal(validatePick({ ...base, round: 3, teamId: 1 }).code, 'round_closed');
 });
 
-test('validatePick: a league may let entrants get a few rounds ahead', () => {
-  const base = {
-    entryStatus: 'active', leagueStatus: 'active', teamCount: 20, usedPicks: [],
-    teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 4, advancePicks: 3,
+test('validatePick: the opening block is open up front, and only at the start', () => {
+  const beforeKickOff = {
+    entryStatus: 'active', leagueStatus: 'open', teamCount: 20, usedPicks: [],
+    teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 1, openingPicks: 3,
   };
-  assert.equal(validatePick({ ...base, round: 4, teamId: 1 }).ok, true);
-  assert.equal(validatePick({ ...base, round: 6, teamId: 1 }).ok, true);
-  const tooFar = validatePick({ ...base, round: 7, teamId: 1 });
+  for (const round of [1, 2, 3]) {
+    assert.equal(validatePick({ ...beforeKickOff, round, teamId: round }).ok, true);
+  }
+  const tooFar = validatePick({ ...beforeKickOff, round: 4, teamId: 9 });
   assert.equal(tooFar.code, 'too_far_ahead');
-  assert.match(tooFar.message, /up to round 6/);
+  assert.match(tooFar.message, /opening 3 rounds/);
+
+  // Once the block is behind us the competition is strictly one round at a time.
+  const later = { ...beforeKickOff, nextOpenRound: 5, leagueStatus: 'active' };
+  assert.equal(validatePick({ ...later, round: 5, teamId: 9 }).ok, true);
+  const ahead = validatePick({ ...later, round: 6, teamId: 9 });
+  assert.equal(ahead.code, 'too_far_ahead');
+  assert.match(ahead.message, /only pick for round 5/);
 });
 
-test('openPickRounds lists what is currently pickable', () => {
-  assert.deepEqual(openPickRounds(4, 1), [4]);
-  assert.deepEqual(openPickRounds(4, 3), [4, 5, 6]);
+test('openPickRounds narrows as the opening block is played off', () => {
+  assert.deepEqual(openPickRounds(1, 3), [1, 2, 3], 'all three up front');
+  assert.deepEqual(openPickRounds(2, 3), [2, 3], 'round 1 has kicked off');
+  assert.deepEqual(openPickRounds(4, 3), [4], 'the block is over — one at a time');
+  assert.deepEqual(openPickRounds(1, 1), [1], 'a league with no opening block');
+  assert.deepEqual(openPickRounds(7, 1), [7]);
   assert.deepEqual(openPickRounds(null, 3), []);
+});
+
+test('outstandingOpeningRounds says what is still owed up front', () => {
+  assert.deepEqual(outstandingOpeningRounds([], 3), [1, 2, 3]);
+  assert.deepEqual(outstandingOpeningRounds([{ round_number: 2 }], 3), [1, 3]);
+  assert.deepEqual(outstandingOpeningRounds([{ round_number: 1 }], 1), []);
+  assert.deepEqual(
+    outstandingOpeningRounds([1, 2, 3].map((round_number) => ({ round_number })), 3), [],
+  );
 });
 
 test('validatePick: a used team is blocked until its cycle ends', () => {
   const used = [1, 2, 3, 4].map((round) => ({ team_id: round + 5, cycle: 0, round_number: round }));
   const verdict = validatePick({
     entryStatus: 'active', leagueStatus: 'active', round: 5, teamCount: 20, usedPicks: used,
-    teamId: 7, teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 5, advancePicks: 1,
+    teamId: 7, teamPlaysInRound: true, deadlinePassed: false, nextOpenRound: 5, openingPicks: 1,
   });
   assert.equal(verdict.ok, false);
   assert.equal(verdict.code, 'team_used');
@@ -156,7 +176,7 @@ test('validatePick: a used team is blocked until its cycle ends', () => {
 test('validatePick: locked out after the deadline, once eliminated, and beyond the next round', () => {
   const base = {
     entryStatus: 'active', leagueStatus: 'active', teamCount: 20, teamPlaysInRound: true,
-    nextOpenRound: 4, advancePicks: 1,
+    nextOpenRound: 4, openingPicks: 1,
     usedPicks: [1, 2, 3].map((round) => ({ team_id: round, cycle: 0, round_number: round })),
   };
   assert.equal(validatePick({ ...base, round: 4, teamId: 9, deadlinePassed: true }).code, 'deadline_passed');

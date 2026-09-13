@@ -14,7 +14,9 @@ import {
   leagueOverview, leagueStandings,
 } from '../services/leagues.js';
 import { availableTeamsForRound, entryPicks, pickPopularity, roundFixturesWithPicks, submitPick } from '../services/picks.js';
-import { openPickRounds } from '../domain/rules.js';
+import {
+  OPENING_PICKS_MAX, OPENING_PICKS_MIN, openPickRounds, outstandingOpeningRounds,
+} from '../domain/rules.js';
 import { addClient } from '../services/live.js';
 import { verifyLeague } from '../services/verification.js';
 import { queueDirect } from '../services/notifications.js';
@@ -31,7 +33,7 @@ const summarise = (league, context, entry, role) => ({
   joinCode: role === 'admin' || role === 'super_admin' ? league.join_code : undefined,
   status: league.status,
   startGameweek: league.start_gameweek,
-  advancePicks: league.advance_picks,
+  openingPicks: league.opening_picks,
   drawPolicy: league.draw_policy,
   voidPolicy: league.void_policy,
   noPickPolicy: league.no_pick_policy,
@@ -108,7 +110,7 @@ leaguesRouter.get('/preview/:code', wrap(async (req, res) => {
     entryDeadline: context.entryDeadline,
     entryClosed: context.entryClosed,
     totalEntries: overview.totalEntries,
-    advancePicks: league.advance_picks,
+    openingPicks: league.opening_picks,
   });
 }));
 
@@ -151,10 +153,14 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
   // Rounds an entrant may pick for now: the one coming up, plus any the league
   // lets them get ahead on.
   const openRounds = req.entry
-    ? openPickRounds(nextRound, req.league.advance_picks).filter((round) => {
+    ? openPickRounds(nextRound, req.league.opening_picks).filter((round) => {
         const info = context.roundInfo(round);
         return info && !info.deadlinePassed;
       })
+    : [];
+  // Before kick off the opening block is an obligation, not an option.
+  const owedOpeningRounds = req.entry && !context.entryClosed
+    ? outstandingOpeningRounds(picks, req.league.opening_picks)
     : [];
 
   res.json({
@@ -192,6 +198,7 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
     nextRound,
     needsPick,
     openRounds,
+    owedOpeningRounds,
     unpickedOpenRounds: openRounds.filter((round) => !picks.some((pick) => pick.round_number === round)),
     standings: leagueStandings(req.league).map((row) => ({
       entryId: row.entry_id,
@@ -407,7 +414,7 @@ const brandingSchema = z.object({
   tagline: z.string().trim().max(120).nullable().optional(),
   primaryColor: hexColor.optional(),
   secondaryColor: hexColor.optional(),
-  advancePicks: z.number().int().min(1).max(10).optional(),
+  openingPicks: z.number().int().min(OPENING_PICKS_MIN).max(OPENING_PICKS_MAX).optional(),
   // A data: URL from the crest upload, or null to clear it.
   logo: z.string().max(400_000).nullable().optional(),
 });
@@ -451,21 +458,21 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
   }
 
   run(
-    `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, advance_picks = ?,
+    `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, opening_picks = ?,
             logo_data = ?, logo_mime = ?
      WHERE id = ?`,
     body.name ?? league.name,
     body.tagline === undefined ? league.tagline : body.tagline,
     body.primaryColor ?? league.primary_color,
     body.secondaryColor ?? league.secondary_color,
-    body.advancePicks ?? league.advance_picks,
+    body.openingPicks ?? league.opening_picks,
     logo.buffer === undefined ? league.logo_data : logo.buffer,
     logo.buffer === undefined ? league.logo_mime : logo.mime,
     league.id,
   );
   audit(req.user.id, 'league.branding_updated', 'league', league.id, {
     name: body.name, tagline: body.tagline, primaryColor: body.primaryColor,
-    secondaryColor: body.secondaryColor, advancePicks: body.advancePicks,
+    secondaryColor: body.secondaryColor, openingPicks: body.openingPicks,
     logo: body.logo === undefined ? 'unchanged' : body.logo === null ? 'cleared' : 'updated',
     // Worth recording separately: an edit that went through a closed lock.
     supersededLock: context.configLocked && isSuperAdmin,

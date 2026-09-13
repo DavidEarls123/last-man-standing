@@ -20,8 +20,18 @@ export function applyAutoPicks() {
   let made = 0;
   for (const league of leagues) {
     const context = leagueContext(league);
-    // Any round whose deadline has passed but which is not yet settled.
+    // Any round whose deadline has passed but which is not yet settled...
     const rounds = context.rounds.filter((round) => round.deadlinePassed && !round.settled);
+    // ...plus, once entries have closed, the rest of the opening block. Those
+    // rounds were due up front even though their own kick offs are still ahead.
+    if (context.entryClosed) {
+      for (const roundInfo of context.rounds) {
+        if (roundInfo.round > league.opening_picks) break;
+        if (roundInfo.settled || rounds.includes(roundInfo)) continue;
+        rounds.push(roundInfo);
+      }
+      rounds.sort((a, b) => a.round - b.round);
+    }
     for (const roundInfo of rounds) {
       const entries = all(
         `SELECT e.* FROM entries e
@@ -52,7 +62,10 @@ export function applyAutoPicks() {
         audit(null, 'pick.auto', 'entry', entry.id, {
           leagueId: league.id, round: roundInfo.round, teamId: team.id, rule: 'alphabetical',
         });
-        assigned.push({ entry, round: roundInfo.round, teamName: team.name, deadline: roundInfo.deadline });
+        assigned.push({
+          entry, round: roundInfo.round, teamName: team.name, deadline: roundInfo.deadline,
+          opening: roundInfo.round <= league.opening_picks && context.entryClosed,
+        });
         made += 1;
       }
       if (assigned.length) queueAutoPickNotices(league, assigned);

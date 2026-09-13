@@ -120,7 +120,7 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
       teamPlaysInRound: Boolean(fixture),
       deadlinePassed: new Date(gameweek.deadline).getTime() <= Date.now(),
       nextOpenRound: context.nextOpenRound,
-      advancePicks: league.advance_picks,
+      openingPicks: league.opening_picks,
       reselecting,
     });
     if (!verdict.ok) throw conflict(verdict.message, { code: verdict.code });

@@ -14,6 +14,7 @@ export default function PickPage() {
   // just the next round.
   const reselect = league.reselection ?? [];
   const openRounds = league.openRounds ?? [];
+  const owedOpening = league.owedOpeningRounds ?? [];
   const rounds = useMemo(() => {
     // A round whose fixture was called off reopens, even past its deadline.
     return [...new Set([...reselect.map((item) => item.round), ...openRounds])].sort((a, b) => a - b);
@@ -71,8 +72,10 @@ export default function PickPage() {
       <div>
         <h1>Make your pick</h1>
         <p className="muted small" style={{ marginTop: 4 }}>
-          One pick per round, never the same club twice in a cycle. The deadline is the first
-          kick off of the gameweek, and it is the same for everyone.
+          {owedOpening.length > 0
+            ? `This league starts with ${info.openingPicks} picks, all due before the first kick off.`
+            : 'One pick per round, never the same club twice in a cycle.'}
+          {' '}The deadline is the first kick off of the gameweek, the same for everyone.
         </p>
       </div>
 
@@ -94,8 +97,9 @@ export default function PickPage() {
             })}
           </div>
           <p className="tiny dim" style={{ margin: '-4px 0 0' }}>
-            Only round {rounds[0]} has to be in by its deadline — the rest are there if you like
-            to plan ahead.
+            {owedOpening.length > 0
+              ? `All ${info.openingPicks} opening rounds are due before the competition starts. Each one stays changeable until its own gameweek kicks off.`
+              : 'Each round stays changeable until its own gameweek kicks off.'}
           </p>
         </>
       )}
