@@ -139,6 +139,34 @@ const REASON_COPY = {
   no_pick: () => 'no pick was made before the deadline',
 };
 
+/** Tell someone which club they were handed after missing a deadline. */
+export function queueAutoPickNotices(league, items) {
+  const settings = notificationSettings();
+  if (!settings.resultNotices) return 0;
+  let queued = 0;
+  for (const { entry, round, teamName, deadline } of items) {
+    const user = userForEntry(entry.id);
+    if (!user) continue;
+    queued += enqueue({
+      user, league,
+      kind: 'auto_pick',
+      dedupeKey: `autopick:${league.id}:${round}:${entry.id}`,
+      subject: `${league.name}: ${teamName} picked for you in round ${round}`,
+      body: [
+        `Hi ${user.display_name},`,
+        '',
+        `Round ${round} closed${deadline ? ` at ${deadline}` : ''} without a pick from you, so the league rules`,
+        `handed you the next club you had not used, alphabetically: ${teamName}.`,
+        '',
+        `${config.publicUrl}/leagues/${league.id}`,
+      ].join('\n'),
+      scheduledFor: nowIso(),
+      settings,
+    });
+  }
+  return queued;
+}
+
 export function queueEliminationNotices(league, eliminated, round) {
   const settings = notificationSettings();
   if (!settings.resultNotices) return 0;
@@ -189,6 +217,41 @@ export function queueSurvivalNotices(league, survived, round, leagueComplete) {
       ].join('\n'),
       scheduledFor: nowIso(),
       settings,
+    });
+  }
+  return queued;
+}
+
+/**
+ * "Your team's game is off — pick again." Sent as soon as a fixture is called
+ * off, with however long is left to choose a replacement.
+ */
+export function queueReselectionNotices(items) {
+  const settings = notificationSettings();
+  let queued = 0;
+  for (const { league, pick, round, deadline, teamName } of items) {
+    const user = userForEntry(pick.entry_id);
+    if (!user) continue;
+    queued += enqueue({
+      user, league,
+      kind: 'reselect_required',
+      dedupeKey: `reselect:${league.id}:${round}:${pick.entry_id}:${pick.team_id}`,
+      subject: `${league.name}: ${teamName}'s game is off — pick again`,
+      body: [
+        `Hi ${user.display_name},`,
+        '',
+        `${teamName}'s round ${round} fixture has been called off, so your pick no longer counts.`,
+        deadline
+          ? `Choose another team before ${deadline} — anything in the gameweek that has not kicked off yet.`
+          : 'There are no games left to switch to in this gameweek, so the round is void for you and you go through.',
+        deadline ? `${teamName} goes back in your pool, so you can still use them later.` : '',
+        '',
+        `${config.publicUrl}/leagues/${league.id}/pick`,
+      ].filter(Boolean).join('\n'),
+      scheduledFor: nowIso(),
+      settings,
+      meta: { round, entryId: pick.entry_id },
+      force: true,
     });
   }
   return queued;

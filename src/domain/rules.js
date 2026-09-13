@@ -11,9 +11,13 @@
  */
 
 export const DEFAULT_POLICIES = Object.freeze({
-  drawPolicy: 'eliminate',   // a draw is not a win, so by default it knocks you out
-  voidPolicy: 'eliminate',   // postponed/abandoned or no fixture at all
-  noPickPolicy: 'eliminate', // failing to pick before the deadline
+  // A draw is not a win, so by default it knocks you out.
+  drawPolicy: 'eliminate',
+  // Postponed/abandoned, or no fixture at all. 'reselect' asks the entrant for
+  // a new pick instead of punishing them for a game being called off.
+  voidPolicy: 'reselect',
+  // Missing a deadline hands you the next club you have not used, alphabetically.
+  noPickPolicy: 'auto_alphabetical',
 });
 
 export function roundForGameweek(startGameweek, gameweekNumber) {
@@ -33,14 +37,36 @@ export function cycleForRound(round, teamCount) {
 
 /**
  * Teams an entry may still pick in a given round: everything not already used
- * in the same cycle.
+ * in the same cycle. A pick voided by a called-off fixture does not count as
+ * used — that club never actually played for them.
  * @param {Array<{id:number}>} teams every team in the competition
- * @param {Array<{team_id:number, cycle:number}>} picks the entry's picks so far
+ * @param {Array<{team_id:number, cycle:number, outcome?:string}>} picks the entry's picks so far
  */
 export function availableTeams(teams, picks, round, teamCount) {
-  const cycle = cycleForRound(round, teamCount);
-  const used = new Set(picks.filter((pick) => pick.cycle === cycle).map((pick) => pick.team_id));
+  const used = usedTeamIds(picks, round, teamCount);
   return teams.filter((team) => !used.has(team.id));
+}
+
+export function usedTeamIds(picks, round, teamCount) {
+  const cycle = cycleForRound(round, teamCount);
+  return new Set(
+    picks
+      .filter((pick) => pick.cycle === cycle && pick.outcome !== 'void')
+      .map((pick) => pick.team_id),
+  );
+}
+
+/**
+ * The club handed to someone who missed the deadline: the first one they have
+ * not used yet, in alphabetical order, that actually has a fixture.
+ * @param {Array<{id:number, name:string}>} teams
+ * @param {(teamId:number) => boolean} playsInRound
+ */
+export function nextAlphabeticalTeam(teams, picks, round, teamCount, playsInRound = () => true) {
+  const used = usedTeamIds(picks, round, teamCount);
+  return [...teams]
+    .sort((a, b) => a.name.localeCompare(b.name, 'en-GB'))
+    .find((team) => !used.has(team.id) && playsInRound(team.id)) ?? null;
 }
 
 /**
@@ -67,23 +93,32 @@ export function fixtureOutcome(fixture, teamId) {
 
 /**
  * Turn an outcome into survival, applying the league's policies.
+ *
+ * Under the default `reselect` void policy a called-off fixture leaves the
+ * round unresolved while the entrant still has time to choose again; once no
+ * other fixture in the round is left to pick from, they survive.
+ *
+ * @param {{canReselect?:boolean}} [context]
  * @returns {'pending'|'survived'|'eliminated'}
  */
-export function resultForOutcome(outcome, policies = DEFAULT_POLICIES) {
+export function resultForOutcome(outcome, policies = DEFAULT_POLICIES, { canReselect = false } = {}) {
   switch (outcome) {
     case 'pending': return 'pending';
     case 'win': return 'survived';
     case 'loss': return 'eliminated';
     case 'draw': return policies.drawPolicy === 'survive' ? 'survived' : 'eliminated';
-    case 'void': return policies.voidPolicy === 'survive' ? 'survived' : 'eliminated';
+    case 'void':
+      if (policies.voidPolicy === 'survive') return 'survived';
+      if (policies.voidPolicy === 'reselect') return canReselect ? 'pending' : 'survived';
+      return 'eliminated';
     default: throw new Error(`Unknown outcome: ${outcome}`);
   }
 }
 
 /** Convenience: fixture -> final result in one step. */
-export function settlePick(fixture, teamId, policies = DEFAULT_POLICIES) {
+export function settlePick(fixture, teamId, policies = DEFAULT_POLICIES, context = {}) {
   const outcome = fixtureOutcome(fixture, teamId);
-  return { outcome, result: resultForOutcome(outcome, policies) };
+  return { outcome, result: resultForOutcome(outcome, policies, context) };
 }
 
 /**
@@ -101,6 +136,9 @@ export function validatePick({
   deadlinePassed,
   entryDeadlinePassed,
   initialPicks,
+  // True when this round's pick was voided by a called-off fixture and the
+  // entrant is choosing a replacement, which reopens an expired deadline.
+  reselecting = false,
 }) {
   if (leagueStatus === 'completed' || leagueStatus === 'archived') {
     return { ok: false, code: 'league_closed', message: 'This league has finished.' };
@@ -111,7 +149,7 @@ export function validatePick({
   if (round < 1) {
     return { ok: false, code: 'before_start', message: 'That gameweek is before the competition starts.' };
   }
-  if (deadlinePassed) {
+  if (deadlinePassed && !reselecting) {
     return { ok: false, code: 'deadline_passed', message: 'The deadline for that gameweek has passed.' };
   }
   // Rounds 1..initialPicks must all be chosen before the entry deadline; after
@@ -124,12 +162,14 @@ export function validatePick({
         message: `Before kick off you pick rounds 1 to ${initialPicks} only.`,
       };
     }
-  } else if (round > currentOpenRound(usedPicks, initialPicks)) {
+  } else if (!reselecting && round > currentOpenRound(usedPicks, initialPicks)) {
     return { ok: false, code: 'too_far_ahead', message: 'You can only pick for the next round.' };
   }
 
   const cycle = cycleForRound(round, teamCount);
-  const clash = usedPicks.find((pick) => pick.cycle === cycle && pick.team_id === teamId && pick.round_number !== round);
+  // Picks voided by a called-off fixture do not use the club up.
+  const clash = usedPicks.find((pick) => pick.cycle === cycle && pick.team_id === teamId
+    && pick.round_number !== round && pick.outcome !== 'void');
   if (clash) {
     return {
       ok: false,

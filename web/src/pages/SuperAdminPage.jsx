@@ -101,7 +101,7 @@ function LeaguesSection({ setToast, setError }) {
   const overview = useAsync(() => api.get('/api/admin/overview'));
   const [form, setForm] = useState({
     name: '', startGameweek: 1, adminEmail: '', initialPicks: 3,
-    drawPolicy: 'eliminate', voidPolicy: 'eliminate', noPickPolicy: 'eliminate', seasonId: '',
+    drawPolicy: 'eliminate', voidPolicy: 'reselect', noPickPolicy: 'auto_alphabetical', seasonId: '',
   });
 
   useEffect(() => {
@@ -179,15 +179,16 @@ function LeaguesSection({ setToast, setError }) {
             <label className="field">
               Postponed / no fixture
               <select value={form.voidPolicy} onChange={(event) => setForm({ ...form, voidPolicy: event.target.value })}>
-                <option value="eliminate">Knocks you out</option>
+                <option value="reselect">Ask them to pick again</option>
                 <option value="survive">Counts as surviving</option>
+                <option value="eliminate">Knocks you out</option>
               </select>
             </label>
             <label className="field">
               No pick by the deadline
               <select value={form.noPickPolicy} onChange={(event) => setForm({ ...form, noPickPolicy: event.target.value })}>
+                <option value="auto_alphabetical">Give them the next unused club (A–Z)</option>
                 <option value="eliminate">Knocks you out</option>
-                <option value="random">Pick a team at random</option>
               </select>
             </label>
           </div>

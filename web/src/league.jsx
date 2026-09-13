@@ -22,9 +22,15 @@ export function LeagueProvider({ leagueId, children }) {
   if (state.loading && !state.data) return <div className="content"><Spinner /></div>;
   if (!state.data) return <div className="content"><Alert tone="error">{state.error}</Alert></div>;
 
+  const theme = {
+    '--brand': state.data.league.primaryColor,
+    '--brand-2': state.data.league.secondaryColor,
+  };
+
   return (
     <LeagueContext.Provider value={{ ...state.data, leagueId, reload: load }}>
-      {children}
+      {/* The league's colours cascade to every tab inside it. */}
+      <div style={theme} className="grow">{children}</div>
     </LeagueContext.Provider>
   );
 }

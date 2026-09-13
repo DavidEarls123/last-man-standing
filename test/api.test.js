@@ -175,6 +175,81 @@ test('the same account can enter several leagues', async () => {
   assert.deepEqual(mine.body.leagues.map((league) => league.name).sort(), ['Office LMS', 'Pub LMS']);
 });
 
+// A 1x1 transparent PNG.
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+test('the league admin brands the league and sets the opening picks', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'Office LMS');
+  // Give Alice the league so she is acting as a plain league admin.
+  await superAdmin('PATCH', `/api/admin/leagues/${league.id}`, { adminEmail: 'alice@example.com' });
+
+  const branded = await alice('PATCH', `/api/leagues/${league.id}`, {
+    name: 'The Bell Inn Survivor Cup',
+    tagline: 'Last one standing buys nothing',
+    primaryColor: '#e4572e',
+    secondaryColor: '#17bebb',
+    logo: PNG,
+  });
+  assert.equal(branded.status, 200, JSON.stringify(branded.body));
+  assert.equal(branded.body.league.name, 'The Bell Inn Survivor Cup');
+  assert.equal(branded.body.league.primaryColor, '#e4572e');
+  assert.equal(branded.body.league.logoUrl, `/api/leagues/${league.id}/logo`);
+
+  const logo = await fetch(`${base}/api/leagues/${league.id}/logo`);
+  assert.equal(logo.status, 200);
+  assert.equal(logo.headers.get('content-type'), 'image/png');
+
+  const badColour = await alice('PATCH', `/api/leagues/${league.id}`, { primaryColor: 'tangerine' });
+  assert.equal(badColour.status, 400);
+
+  // Alice has picks for rounds 1-3, so the opening block cannot shrink below 3.
+  const tooFew = await alice('PATCH', `/api/leagues/${league.id}`, { initialPicks: 2 });
+  assert.equal(tooFew.status, 409);
+  assert.match(tooFew.body.error.message, /already picked beyond round 2/i);
+
+  const more = await alice('PATCH', `/api/leagues/${league.id}`, { initialPicks: 5 });
+  assert.equal(more.status, 200);
+  assert.equal(get('SELECT initial_picks FROM leagues WHERE id = ?', league.id).initial_picks, 5);
+
+  // With five opening picks, round 5 is now inside the block.
+  const teams = (await alice('GET', `/api/leagues/${league.id}/rounds/5/teams`)).body.teams
+    .filter((team) => team.available);
+  assert.equal((await alice('POST', `/api/leagues/${league.id}/picks`, {
+    round: 5, teamId: teams[0].teamId,
+  })).status, 201);
+});
+
+test('a league admin can put an eliminated player back in', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+  const entry = get(
+    `SELECT e.* FROM entries e JOIN users u ON u.id = e.user_id
+     WHERE e.league_id = ? AND u.email = 'bob@example.com'`,
+    league.id,
+  );
+  run("UPDATE entries SET status = 'eliminated', eliminated_round = 1, eliminated_reason = 'loss' WHERE id = ?", entry.id);
+
+  const noReason = await alice('POST', `/api/leagues/${league.id}/members/${entry.id}/reinstate`, {});
+  assert.equal(noReason.status, 400);
+
+  const reinstated = await alice('POST', `/api/leagues/${league.id}/members/${entry.id}/reinstate`, {
+    reason: 'App was down when he tried to pick',
+  });
+  assert.equal(reinstated.status, 200);
+  const after = get('SELECT * FROM entries WHERE id = ?', entry.id);
+  assert.equal(after.status, 'active');
+  assert.equal(after.eliminated_round, null);
+  assert.equal(after.reinstated_reason, 'App was down when he tried to pick');
+
+  const again = await alice('POST', `/api/leagues/${league.id}/members/${entry.id}/reinstate`, { reason: 'twice' });
+  assert.equal(again.status, 409, 'nothing to reinstate');
+
+  // Players cannot reinstate themselves.
+  assert.equal(
+    (await bob('POST', `/api/leagues/${league.id}/members/${entry.id}/reinstate`, { reason: 'let me in' })).status,
+    403,
+  );
+});
+
 test.after(() => {
   server.close();
   fs.rmSync(tmp, { recursive: true, force: true });

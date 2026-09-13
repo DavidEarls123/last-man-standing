@@ -4,6 +4,7 @@ import { useLeague } from '../league.jsx';
 import { Alert, Card, Empty, Spinner, Toast, useAsync } from '../components/ui.jsx';
 import { formatShort } from '../lib/format.js';
 import EntryOverride from '../components/EntryOverride.jsx';
+import LeagueBranding from '../components/LeagueBranding.jsx';
 
 export default function LeagueAdminPage() {
   const league = useLeague();
@@ -38,11 +39,13 @@ export default function LeagueAdminPage() {
       <div>
         <h1>Manage {league.league.name}</h1>
         <p className="muted small" style={{ marginTop: 4 }}>
-          Add players, share the join link and keep the league tidy.
+          Set the look, add players, share the join link and keep the league tidy.
         </p>
       </div>
 
       <Alert tone="error">{actionError}</Alert>
+
+      <LeagueBranding league={league.league} onSaved={() => league.reload()} setToast={setToast} />
 
       <Card title="Invite players">
         <div className="code-box">{data.joinCode}</div>
@@ -110,21 +113,33 @@ export default function LeagueAdminPage() {
                 <div className="strong">{member.name}</div>
                 <div className="tiny muted">
                   {member.email || member.phone} · joined {formatShort(member.joinedAt)}
+                  {member.reinstatedReason && ` · put back in: ${member.reinstatedReason}`}
                 </div>
               </div>
               <span className={`badge ${member.status === 'active' ? 'badge-in' : 'badge-out'}`}>
                 {member.status === 'active' ? 'In' : member.status === 'withdrawn' ? 'Withdrawn' : `Out R${member.eliminatedRound}`}
               </span>
-              <button className="btn-danger btn-sm" type="button" onClick={run(async () => {
-                if (!window.confirm(`Remove ${member.name} from this league?`)) return;
-                const result = await api.del(`/api/leagues/${leagueId}/members/${member.entryId}`);
-                setToast(result.action === 'withdrawn' ? `${member.name} withdrawn` : `${member.name} removed`);
-              })}>Remove</button>
+              <span className="row-tight">
+                {member.status === 'eliminated' && (
+                  <button className="btn-ghost btn-sm" type="button" onClick={run(async () => {
+                    const reason = window.prompt(`Why is ${member.name} going back in?`);
+                    if (!reason) return;
+                    await api.post(`/api/leagues/${leagueId}/members/${member.entryId}/reinstate`, { reason });
+                    setToast(`${member.name} is back in`);
+                  })}>Put back in</button>
+                )}
+                <button className="btn-danger btn-sm" type="button" onClick={run(async () => {
+                  if (!window.confirm(`Remove ${member.name} from this league?`)) return;
+                  const result = await api.del(`/api/leagues/${leagueId}/members/${member.entryId}`);
+                  setToast(result.action === 'withdrawn' ? `${member.name} withdrawn` : `${member.name} removed`);
+                })}>Remove</button>
+              </span>
             </div>
           ))}
         </div>
         <p className="tiny dim" style={{ marginTop: 10, marginBottom: 0 }}>
           Once the competition is under way, removing a player withdraws them so past rounds still add up.
+          "Put back in" is there for the special cases — a pick that never saved, a fixture mix-up.
         </p>
       </Card>
 
@@ -146,16 +161,6 @@ export default function LeagueAdminPage() {
         </form>
       </Card>
 
-      <Card title="League name">
-        <form className="row" onSubmit={run(async () => {
-          const name = document.getElementById('league-name').value;
-          await api.patch(`/api/leagues/${leagueId}`, { name });
-          setToast('League renamed');
-        })}>
-          <input id="league-name" className="grow" defaultValue={league.league.name} />
-          <button className="btn-ghost" type="submit">Rename</button>
-        </form>
-      </Card>
 
       {league.league.role === 'super_admin' && (
         <EntryOverride leagueId={leagueId} onChange={() => { reload(); league.reload(); }} />

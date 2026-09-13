@@ -1,19 +1,21 @@
 import { all, audit } from './db/index.js';
 import { config } from './config.js';
 import { footballProvider } from './services/football/index.js';
-import { settleAllLeagues } from './services/settlement.js';
-import { dispatchDueNotifications, queueDeadlineReminders } from './services/notifications.js';
+import { flagReselections, settleAllLeagues } from './services/settlement.js';
+import { dispatchDueNotifications, queueAutoPickNotices, queueDeadlineReminders } from './services/notifications.js';
 import { broadcastLive, heartbeat } from './services/live.js';
 import { leagueContext } from './services/leagues.js';
-import { availableTeamsForRound, submitPick } from './services/picks.js';
+import { submitPick, usedPicks } from './services/picks.js';
+import { nextAlphabeticalTeam } from './domain/rules.js';
 
 /**
- * Leagues configured with no_pick_policy = 'random' get an automatic pick at
- * the deadline instead of an elimination.
+ * Miss a deadline and the league hands you the next club you have not used,
+ * in alphabetical order — no pick, but no automatic exit either. Leagues set
+ * to `eliminate` skip this and go out at settlement instead.
  */
 export function applyAutoPicks() {
   const leagues = all(
-    "SELECT * FROM leagues WHERE status IN ('open', 'active') AND no_pick_policy = 'random'",
+    "SELECT * FROM leagues WHERE status IN ('open', 'active') AND no_pick_policy = 'auto_alphabetical'",
   );
   let made = 0;
   for (const league of leagues) {
@@ -27,17 +29,33 @@ export function applyAutoPicks() {
            AND NOT EXISTS (SELECT 1 FROM picks p WHERE p.entry_id = e.id AND p.round_number = ?)`,
         league.id, roundInfo.round,
       );
+      if (!entries.length) continue;
+
+      const playable = new Set();
+      for (const fixture of roundInfo.fixtures) {
+        if (fixture.status === 'postponed' || fixture.status === 'abandoned') continue;
+        playable.add(fixture.home_team_id);
+        playable.add(fixture.away_team_id);
+      }
+
+      const assigned = [];
       for (const entry of entries) {
-        const options = availableTeamsForRound(league, entry, roundInfo.round).filter((team) => team.available);
-        if (!options.length) continue;
-        const choice = options[Math.floor(Math.random() * options.length)];
+        const team = nextAlphabeticalTeam(
+          context.teams, usedPicks(entry.id), roundInfo.round, context.teamCount || 1,
+          (teamId) => playable.has(teamId),
+        );
+        if (!team) continue;
         submitPick({
-          league, entry, round: roundInfo.round, teamId: choice.teamId,
-          actorUserId: null, override: true,
+          league, entry, round: roundInfo.round, teamId: team.id,
+          actorUserId: null, override: true, autoAssigned: true,
         });
-        audit(null, 'pick.auto', 'entry', entry.id, { leagueId: league.id, round: roundInfo.round, teamId: choice.teamId });
+        audit(null, 'pick.auto', 'entry', entry.id, {
+          leagueId: league.id, round: roundInfo.round, teamId: team.id, rule: 'alphabetical',
+        });
+        assigned.push({ entry, round: roundInfo.round, teamName: team.name, deadline: roundInfo.deadline });
         made += 1;
       }
+      if (assigned.length) queueAutoPickNotices(league, assigned);
     }
   }
   return made;
@@ -46,8 +64,11 @@ export function applyAutoPicks() {
 async function tick() {
   try {
     const changed = await footballProvider().refresh();
+    // Called-off games open a reselection before anything else is decided.
+    const reselections = flagReselections();
     applyAutoPicks();
     const settled = settleAllLeagues();
+    if (reselections) console.log(`[scheduler] opened ${reselections} reselection(s)`);
     if (changed.length || settled.length) broadcastLive();
     if (settled.length) {
       console.log(`[scheduler] settled ${settled.length} round(s)`);

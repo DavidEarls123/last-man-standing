@@ -3,7 +3,9 @@ import { nowIso } from '../lib/time.js';
 import { decideWinners, settlePick } from '../domain/rules.js';
 import { gameweekForLeagueRound, leagueContext, policiesFor } from './leagues.js';
 import { fixtureForTeam } from './picks.js';
-import { queueEliminationNotices, queueSurvivalNotices, queueWinnerNotices } from './notifications.js';
+import {
+  queueEliminationNotices, queueReselectionNotices, queueSurvivalNotices, queueWinnerNotices,
+} from './notifications.js';
 
 /**
  * Settle one round of one league. Safe to run repeatedly: a round is only
@@ -43,11 +45,16 @@ export function settleRound(leagueId, round, { actorUserId = null, force = false
       }
 
       const fixture = fixtureForTeam(gameweek.id, pick.team_id);
-      const { outcome, result } = settlePick(fixture, pick.team_id, policies);
+      // By the time a round settles there is nothing left to reselect from, so
+      // a still-void pick resolves under the policy rather than staying open.
+      const { outcome, result } = settlePick(fixture, pick.team_id, policies, { canReselect: false });
       if (result === 'pending') continue;
 
-      run('UPDATE picks SET outcome = ?, result = ?, updated_at = ? WHERE id = ?',
-        outcome, result, nowIso(), pick.id);
+      run(
+        `UPDATE picks SET outcome = ?, result = ?, needs_reselect = 0, reselect_deadline = NULL, updated_at = ?
+         WHERE id = ?`,
+        outcome, result, nowIso(), pick.id,
+      );
 
       const team = get('SELECT name FROM teams WHERE id = ?', pick.team_id);
       if (result === 'eliminated') {
@@ -86,6 +93,73 @@ export function settleRound(leagueId, round, { actorUserId = null, force = false
       winnerIds: verdict.winnerIds,
     };
   });
+}
+
+/**
+ * Called-off fixtures: whoever picked the team gets told, and gets to choose
+ * again from whatever in that gameweek has not kicked off yet.
+ *
+ * Run whenever fixture data changes — reselection has to open the moment the
+ * postponement lands, not when the round finally settles.
+ */
+export function flagReselections({ actorUserId = null } = {}) {
+  const leagues = all("SELECT * FROM leagues WHERE status IN ('open', 'active') AND void_policy = 'reselect'");
+  const opened = [];
+
+  for (const league of leagues) {
+    const context = leagueContext(league);
+    for (const roundInfo of context.rounds) {
+      if (roundInfo.settled) continue;
+      if (!roundInfo.fixtures.length) continue;
+
+      // Anything still to be played is a valid replacement.
+      const stillToPlay = roundInfo.fixtures.filter(
+        (fixture) => fixture.status === 'scheduled' && new Date(fixture.kickoff).getTime() > Date.now(),
+      );
+      const deadline = stillToPlay.length
+        ? new Date(Math.max(...stillToPlay.map((fixture) => new Date(fixture.kickoff).getTime()))).toISOString()
+        : null;
+
+      const picks = all(
+        `SELECT p.*, e.user_id, e.status AS entry_status, t.name AS team_name
+         FROM picks p
+         JOIN entries e ON e.id = p.entry_id
+         JOIN teams t ON t.id = p.team_id
+         WHERE p.league_id = ? AND p.round_number = ? AND p.result = 'pending' AND e.status = 'active'`,
+        league.id, roundInfo.round,
+      );
+
+      for (const pick of picks) {
+        const fixture = roundInfo.fixtures.find(
+          (candidate) => candidate.home_team_id === pick.team_id || candidate.away_team_id === pick.team_id,
+        );
+        const calledOff = !fixture || fixture.status === 'postponed' || fixture.status === 'abandoned';
+
+        if (!calledOff) {
+          // A game that was off and is now back on: the original pick stands.
+          if (pick.needs_reselect) {
+            run('UPDATE picks SET needs_reselect = 0, reselect_deadline = NULL, updated_at = ? WHERE id = ?',
+              nowIso(), pick.id);
+          }
+          continue;
+        }
+        if (pick.needs_reselect) continue; // already told them
+
+        run(
+          `UPDATE picks SET outcome = 'void', needs_reselect = ?, reselect_deadline = ?, updated_at = ?
+           WHERE id = ?`,
+          deadline ? 1 : 0, deadline, nowIso(), pick.id,
+        );
+        opened.push({ league, pick, round: roundInfo.round, deadline, teamName: pick.team_name });
+      }
+    }
+  }
+
+  if (opened.length) {
+    queueReselectionNotices(opened);
+    audit(actorUserId, 'league.reselection_opened', null, null, { picks: opened.length });
+  }
+  return opened.length;
 }
 
 function eliminateEntry(entry, round, reason) {

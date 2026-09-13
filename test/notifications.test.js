@@ -122,7 +122,7 @@ test('switching notifications off queues nothing', () => {
   assert.equal(all('SELECT * FROM notifications WHERE user_id = ?', player.id).length, 0);
 });
 
-test('a league set to auto-pick fills in for anyone who misses the deadline', () => {
+test('missing a deadline hands over the next unused club alphabetically', () => {
   const owner = makeUser('owner5');
   // Start in the past so the round 1 deadline has already gone.
   const past = seedSeason({
@@ -132,16 +132,35 @@ test('a league set to auto-pick fills in for anyone who misses the deadline', ()
   });
   const league = createLeague({
     name: 'Auto pickers', seasonId: past.seasonId, startGameweek: 1, createdBy: owner.id,
-    noPickPolicy: 'random',
   });
+  assert.equal(league.no_pick_policy, 'auto_alphabetical', 'the default for a new league');
+
   const player = makeUser('forgetful');
   const entry = joinLeague(league, player.id, { force: true });
 
-  const made = applyAutoPicks();
-  assert.ok(made >= 1);
-  const pick = get('SELECT * FROM picks WHERE entry_id = ? AND round_number = 1', entry.id);
-  assert.ok(pick, 'a team was chosen for them');
+  assert.ok(applyAutoPicks() >= 1);
+  const pick = get(
+    `SELECT t.name, p.auto_assigned FROM picks p JOIN teams t ON t.id = p.team_id
+     WHERE p.entry_id = ? AND p.round_number = 1`,
+    entry.id,
+  );
+  const alphabeticallyFirst = get(
+    'SELECT name FROM teams WHERE season_id = ? ORDER BY name LIMIT 1', past.seasonId,
+  ).name;
+  assert.equal(pick.name, alphabeticallyFirst);
+  assert.equal(pick.auto_assigned, 1);
   assert.equal(get('SELECT status FROM entries WHERE id = ?', entry.id).status, 'active');
+
+  // Round 2 gets the next one along, not the same club again.
+  const second = all('SELECT * FROM gameweeks WHERE season_id = ? AND number = 2', past.seasonId);
+  assert.ok(second.length);
+  applyAutoPicks();
+  const round2 = get(
+    `SELECT t.name FROM picks p JOIN teams t ON t.id = p.team_id
+     WHERE p.entry_id = ? AND p.round_number = 2`,
+    entry.id,
+  );
+  assert.ok(round2 && round2.name !== alphabeticallyFirst);
 });
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));

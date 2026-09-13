@@ -33,8 +33,17 @@ export default function JoinPage() {
   if (!preview) return <Spinner />;
 
   return (
+    <div style={{ '--brand': preview.primaryColor, '--brand-2': preview.secondaryColor }}>
     <Card>
-      <h1>{preview.name}</h1>
+      <div className="row" style={{ marginBottom: 10 }}>
+        {preview.logoUrl
+          ? <img className="logo-preview" src={preview.logoUrl} alt={`${preview.name} crest`} />
+          : <div className="logo-preview" style={{ display: 'grid', placeItems: 'center', fontSize: 28 }}>🏆</div>}
+        <div className="grow">
+          <h1>{preview.name}</h1>
+          {preview.tagline && <div className="small muted">{preview.tagline}</div>}
+        </div>
+      </div>
       <p className="muted small">
         Last Man Standing, starting at gameweek {preview.startGameweek}. You pick a winner for each of
         the first {preview.initialPicks} rounds before entries close, then one round at a time.
@@ -55,5 +64,6 @@ export default function JoinPage() {
         </button>
       </div>
     </Card>
+    </div>
   );
 }

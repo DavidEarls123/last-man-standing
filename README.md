@@ -11,13 +11,14 @@ must be in before the very first kick off.
 | Rule | Behaviour |
 | --- | --- |
 | Entry | Anyone with the join code can enter until the **first kick off of the league's start gameweek**. After that the league is sealed. |
-| Opening picks | Before that first kick off every entrant chooses teams for rounds **1, 2 and 3** (configurable per league). |
-| Ongoing picks | From round 4 on, one pick per round, due before that gameweek's first kick off. Picks can be changed right up to the deadline. |
+| Opening picks | Before that first kick off every entrant chooses teams for the first **3** rounds — the league admin can set any number from 1 to 10. |
+| Ongoing picks | After the opening block, one pick per round, due before that gameweek's first kick off. Picks can be changed right up to the deadline. |
 | Team reuse | A club can be used **once per cycle of 20**. Survive all twenty rounds and every club is available again from round 21. |
 | Winning | Your pick must **win**. A draw is not a win. |
 | Elimination | One bad round ends your run. Eliminated entrants keep full read access and can follow the league to the end. |
-| Missed pick | No pick by the deadline means you are out (a league can instead be set to auto-pick at random). |
-| Postponed fixtures | Treated as no result, which by default eliminates (configurable per league). |
+| Missed pick | You are handed the **next club you have not used, alphabetically** — one that still has a game to play. (A league can be set to eliminate instead.) |
+| Postponed fixtures | Your pick is voided and you are **told to pick again** from whatever in that gameweek has not kicked off yet. The called-off club goes back in your pool. Nothing left to switch to? The round is void and you go through. |
+| Special circumstances | The league admin can put an eliminated player back in, with a reason that is recorded and shown. |
 | The last one standing | Wins. If every remaining entrant goes out in the same round, they share the win. |
 
 Rounds are numbered from the league's start gameweek, so a league starting at gameweek 12
@@ -27,8 +28,9 @@ calls that round 1.
 
 - **Super admin** — one per platform (you). Creates leagues, appoints each league's admin,
   can amend anything: results, picks, entries, league settings, accounts, notification timings.
-- **League admin** — exactly one per league. Adds players, shares the join link, removes
-  players, messages entrants, renames the league. Cannot touch results.
+- **League admin** — exactly one per league. Names and brands the league, sets how many
+  opening picks are due, adds players, shares the join link, removes players, puts an
+  eliminated player back in, messages entrants. Cannot touch results.
 - **Player** — one account, any number of leagues. Joins with a code, makes picks, follows
   along after elimination.
 
@@ -76,10 +78,24 @@ The fixtures loaded by `npm run seed` are **generated sample data**, not the rea
 they exist so the app is usable end to end before you connect a feed. Club names come from
 `data/teams.json`; edit that file for a different season.
 
+### Making a league your own
+
+Under **Manage**, a league admin sets:
+
+- the **title** and an optional tagline
+- **two colours**, which theme that league throughout — header, buttons, progress bars,
+  the active tab — so entrants in several leagues can tell them apart at a glance
+- a **crest**, uploaded from the phone or desktop and shrunk to 256px in the browser
+  before it is sent (PNG, JPEG, WebP, GIF or SVG, under 256KB)
+- how many **opening picks** are due before the first kick off
+
+Colours and crest show up on the invite preview too, so a join link looks like the league.
+
 ### Notifications
 
 Deadline reminders and results notices go out by email, SMS, or both, following each
-player's preferences. The super admin sets the timings under **Platform → Notifications**:
+player's preferences. Players are also messaged when a fixture is called off and they need
+to pick again, and when a missed deadline hands them a club. The super admin sets the timings under **Platform → Notifications**:
 
 - reminder offsets, in minutes before each deadline (default 48h, 24h, 2h) — sent to anyone
   who has not picked yet
@@ -155,13 +171,14 @@ test/                    rules unit tests, competition lifecycle, HTTP API
 npm test
 ```
 
-Covers the rules in isolation (cycles, draws, void fixtures, winner logic), a full
-competition lifecycle through the services, and the HTTP API including access control.
+Covers the rules in isolation (cycles, draws, called-off fixtures, alphabetical auto-picks,
+winner logic), a full competition lifecycle through the services, the reselection flow end
+to end, and the HTTP API including access control and league branding.
 
 ## Deployment notes
 
 - The database is a single SQLite file (`data/lms.sqlite`) in WAL mode — back it up by
-  copying that directory.
+  copying that directory. Schema changes migrate on boot, crests included.
 - Run behind a TLS-terminating proxy; cookies are marked `Secure` when `NODE_ENV=production`.
 - One process only: the fixture poller, settlement and notification workers all run in-process
   on timers, so a second instance would duplicate the work.

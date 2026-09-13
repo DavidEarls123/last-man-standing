@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  availableTeams, currentOpenRound, cycleForRound, decideWinners, fixtureOutcome,
-  gameweekForRound, resultForOutcome, roundForGameweek, settlePick, validatePick,
+  DEFAULT_POLICIES, availableTeams, currentOpenRound, cycleForRound, decideWinners, fixtureOutcome,
+  gameweekForRound, nextAlphabeticalTeam, resultForOutcome, roundForGameweek, settlePick, validatePick,
 } from '../src/domain/rules.js';
 
 const finished = (home, away, homeScore, awayScore) => ({
@@ -49,10 +49,63 @@ test('fixture outcomes read from the picked team point of view', () => {
 test('a draw knocks you out by default but a league can allow it', () => {
   assert.equal(resultForOutcome('draw'), 'eliminated');
   assert.equal(resultForOutcome('draw', { drawPolicy: 'survive' }), 'survived');
-  assert.equal(resultForOutcome('void'), 'eliminated');
-  assert.equal(resultForOutcome('void', { voidPolicy: 'survive' }), 'survived');
   assert.equal(resultForOutcome('win', { drawPolicy: 'survive' }), 'survived');
   assert.equal(settlePick(finished(3, 4, 0, 2), 4).result, 'survived');
+});
+
+test('a called-off fixture asks for a new pick, and never eliminates by default', () => {
+  // Games still to come in the gameweek: the entrant picks again.
+  assert.equal(resultForOutcome('void', DEFAULT_POLICIES, { canReselect: true }), 'pending');
+  // Nothing left to switch to: the round is void for them and they go through.
+  assert.equal(resultForOutcome('void', DEFAULT_POLICIES, { canReselect: false }), 'survived');
+  assert.equal(resultForOutcome('void', { voidPolicy: 'survive' }), 'survived');
+  assert.equal(resultForOutcome('void', { voidPolicy: 'eliminate' }), 'eliminated');
+});
+
+test('a voided pick puts that club back in the pool', () => {
+  const teams = [{ id: 1, name: 'Arsenal' }, { id: 2, name: 'Brentford' }, { id: 3, name: 'Chelsea' }];
+  const picks = [
+    { team_id: 1, cycle: 0, round_number: 1, outcome: 'win' },
+    { team_id: 2, cycle: 0, round_number: 2, outcome: 'void' },
+  ];
+  const open = availableTeams(teams, picks, 3, 20).map((team) => team.name);
+  assert.deepEqual(open, ['Brentford', 'Chelsea'], 'the club whose game was called off is selectable again');
+
+  const clash = validatePick({
+    entryStatus: 'active', leagueStatus: 'active', round: 3, teamCount: 20, usedPicks: picks,
+    teamId: 2, teamPlaysInRound: true, deadlinePassed: false, entryDeadlinePassed: true, initialPicks: 2,
+  });
+  assert.equal(clash.ok, true);
+});
+
+test('a missed deadline hands over the next unused club alphabetically', () => {
+  const teams = [
+    { id: 1, name: 'Wolverhampton Wanderers' }, { id: 2, name: 'Arsenal' },
+    { id: 3, name: 'Brentford' }, { id: 4, name: 'Chelsea' },
+  ];
+  const picks = [{ team_id: 2, cycle: 0, round_number: 1, outcome: 'win' }];
+  assert.equal(nextAlphabeticalTeam(teams, picks, 2, 20).name, 'Brentford');
+
+  // Clubs without a fixture are skipped.
+  assert.equal(
+    nextAlphabeticalTeam(teams, picks, 2, 20, (teamId) => teamId !== 3).name,
+    'Chelsea',
+  );
+  // A club freed by a void is back at the top of the list.
+  assert.equal(
+    nextAlphabeticalTeam(teams, [{ team_id: 2, cycle: 0, round_number: 1, outcome: 'void' }], 2, 20).name,
+    'Arsenal',
+  );
+  assert.equal(nextAlphabeticalTeam([], picks, 2, 20), null);
+});
+
+test('a replacement pick may be made after the deadline, but only then', () => {
+  const base = {
+    entryStatus: 'active', leagueStatus: 'active', round: 4, teamCount: 20, usedPicks: [],
+    teamId: 9, teamPlaysInRound: true, deadlinePassed: true, entryDeadlinePassed: true, initialPicks: 3,
+  };
+  assert.equal(validatePick(base).code, 'deadline_passed');
+  assert.equal(validatePick({ ...base, reselecting: true }).ok, true);
 });
 
 test('validatePick: before the entry deadline you pick exactly the opening block', () => {

@@ -56,6 +56,12 @@ const league = existingLeague ?? createLeague({
   createdBy: admin.id,
 });
 
+// Give the demo league a look, so the theming is visible straight away.
+run(
+  `UPDATE leagues SET tagline = ?, primary_color = ?, secondary_color = ? WHERE id = ?`,
+  'Last one standing drinks free', '#e4572e', '#f2a007', league.id,
+);
+
 const players = [];
 for (const [index, name] of NAMES.entries()) {
   const user = await ensureUser(name, index + 1);

@@ -87,11 +87,17 @@ CREATE TABLE IF NOT EXISTS leagues (
   status             TEXT NOT NULL DEFAULT 'open',  -- open | active | completed | archived
   admin_user_id      INTEGER REFERENCES users(id),  -- the single league admin
   created_by_user_id INTEGER NOT NULL REFERENCES users(id),
-  initial_picks      INTEGER NOT NULL DEFAULT 3,
-  draw_policy        TEXT NOT NULL DEFAULT 'eliminate',  -- eliminate | survive
-  void_policy        TEXT NOT NULL DEFAULT 'eliminate',  -- eliminate | survive (postponed/abandoned)
-  no_pick_policy     TEXT NOT NULL DEFAULT 'eliminate',  -- eliminate | random
+  initial_picks      INTEGER NOT NULL DEFAULT 3,   -- picks due before the entry deadline
+  draw_policy        TEXT NOT NULL DEFAULT 'eliminate',        -- eliminate | survive
+  void_policy        TEXT NOT NULL DEFAULT 'reselect',         -- reselect | eliminate | survive
+  no_pick_policy     TEXT NOT NULL DEFAULT 'auto_alphabetical',-- auto_alphabetical | eliminate
   max_entries        INTEGER,
+  -- Branding chosen by the league admin.
+  tagline            TEXT,
+  primary_color      TEXT NOT NULL DEFAULT '#1f9d55',
+  secondary_color    TEXT NOT NULL DEFAULT '#2f6df6',
+  logo_data          BLOB,
+  logo_mime          TEXT,
   created_at         TEXT NOT NULL,
   completed_at       TEXT
 );
@@ -106,6 +112,10 @@ CREATE TABLE IF NOT EXISTS entries (
   eliminated_reason TEXT,
   eliminated_at     TEXT,
   is_winner         INTEGER NOT NULL DEFAULT 0,
+  -- A league admin can wave someone back in for special circumstances.
+  reinstated_at     TEXT,
+  reinstated_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reinstated_reason TEXT,
   joined_at         TEXT NOT NULL,
   UNIQUE(league_id, user_id)
 );
@@ -121,12 +131,19 @@ CREATE TABLE IF NOT EXISTS picks (
   team_id      INTEGER NOT NULL REFERENCES teams(id),
   outcome      TEXT NOT NULL DEFAULT 'pending', -- pending | win | draw | loss | void
   result       TEXT NOT NULL DEFAULT 'pending', -- pending | survived | eliminated
+  -- Set when the fixture is called off and the entrant owes us a new pick.
+  needs_reselect     INTEGER NOT NULL DEFAULT 0,
+  reselect_deadline  TEXT,
+  auto_assigned      INTEGER NOT NULL DEFAULT 0,
   created_at   TEXT NOT NULL,
   updated_at   TEXT NOT NULL,
-  UNIQUE(entry_id, gameweek_id),
-  UNIQUE(entry_id, cycle, team_id)            -- a team may be used once per 20-team cycle
+  UNIQUE(entry_id, gameweek_id)
 );
 CREATE INDEX IF NOT EXISTS idx_picks_league_round ON picks(league_id, round_number);
+-- A team may be used once per cycle of 20 — but a pick voided by a called-off
+-- fixture was never really used, so that club becomes available again.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_picks_team_per_cycle
+  ON picks(entry_id, cycle, team_id) WHERE outcome != 'void';
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,

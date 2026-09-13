@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { all, get, run, audit } from '../db/index.js';
-import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors.js';
 import { parse, wrap, emailSchema, phoneSchema } from '../lib/validate.js';
 import { hashPassword, randomCode } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
@@ -22,6 +22,10 @@ export const leaguesRouter = express.Router();
 const summarise = (league, context, entry, role) => ({
   id: league.id,
   name: league.name,
+  tagline: league.tagline,
+  primaryColor: league.primary_color,
+  secondaryColor: league.secondary_color,
+  logoUrl: league.logo_mime ? `/api/leagues/${league.id}/logo` : null,
   joinCode: role === 'admin' || role === 'super_admin' ? league.join_code : undefined,
   status: league.status,
   startGameweek: league.start_gameweek,
@@ -89,13 +93,27 @@ leaguesRouter.get('/preview/:code', wrap(async (req, res) => {
   const context = leagueContext(league);
   const overview = leagueOverview(league);
   res.json({
+    id: league.id,
     name: league.name,
+    tagline: league.tagline,
+    primaryColor: league.primary_color,
+    secondaryColor: league.secondary_color,
+    logoUrl: league.logo_mime ? `/api/leagues/${league.id}/logo` : null,
     startGameweek: league.start_gameweek,
     entryDeadline: context.entryDeadline,
     entryClosed: context.entryClosed,
     totalEntries: overview.totalEntries,
     initialPicks: league.initial_picks,
   });
+}));
+
+/** League crest. Public so invite links and sign-in screens can show it. */
+leaguesRouter.get('/:leagueId/logo', wrap(async (req, res) => {
+  const league = get('SELECT logo_data, logo_mime FROM leagues WHERE id = ?', Number(req.params.leagueId));
+  if (!league?.logo_data) throw notFound('This league has no crest');
+  res.set('Content-Type', league.logo_mime);
+  res.set('Cache-Control', 'public, max-age=300');
+  res.send(Buffer.from(league.logo_data));
 }));
 
 leaguesRouter.use('/:leagueId', requireAuth, loadLeague);
@@ -143,7 +161,13 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
       outcome: pick.outcome,
       result: pick.result,
       deadline: pick.deadline,
+      needsReselect: Boolean(pick.needs_reselect),
+      reselectDeadline: pick.reselect_deadline,
+      autoAssigned: Boolean(pick.auto_assigned),
     })),
+    reselection: picks
+      .filter((pick) => pick.needs_reselect)
+      .map((pick) => ({ round: pick.round_number, team: pick.team_name, deadline: pick.reselect_deadline })),
     nextDeadline: nextRound ? context.roundInfo(nextRound).deadline : null,
     nextRound,
     needsPick,
@@ -236,7 +260,8 @@ leaguesRouter.get('/:leagueId/live', requireLeagueMember, (req, res) => {
 
 leaguesRouter.get('/:leagueId/members', requireLeagueAdmin, wrap(async (req, res) => {
   const members = all(
-    `SELECT e.id AS entry_id, e.status, e.eliminated_round, e.joined_at,
+    `SELECT e.id AS entry_id, e.status, e.eliminated_round, e.eliminated_reason,
+            e.reinstated_reason, e.joined_at,
             u.id AS user_id, u.display_name, u.email, u.phone
      FROM entries e JOIN users u ON u.id = e.user_id
      WHERE e.league_id = ? ORDER BY u.display_name COLLATE NOCASE`,
@@ -253,6 +278,8 @@ leaguesRouter.get('/:leagueId/members', requireLeagueAdmin, wrap(async (req, res
       phone: member.phone,
       status: member.status,
       eliminatedRound: member.eliminated_round,
+      eliminatedReason: member.eliminated_reason,
+      reinstatedReason: member.reinstated_reason,
       joinedAt: member.joined_at,
     })),
   });
@@ -335,11 +362,124 @@ leaguesRouter.post('/:leagueId/join-code', requireLeagueAdmin, wrap(async (req, 
   res.json({ joinCode: code, joinUrl: `${config.publicUrl}/join/${code}` });
 }));
 
+const hexColor = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #1f9d55');
+
+const brandingSchema = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  tagline: z.string().trim().max(120).nullable().optional(),
+  primaryColor: hexColor.optional(),
+  secondaryColor: hexColor.optional(),
+  initialPicks: z.number().int().min(1).max(10).optional(),
+  // A data: URL from the crest upload, or null to clear it.
+  logo: z.string().max(400_000).nullable().optional(),
+});
+
+const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'];
+const MAX_LOGO_BYTES = 256 * 1024;
+
+function decodeLogo(dataUrl) {
+  const match = /^data:([\w/+.-]+);base64,(.+)$/s.exec(dataUrl.trim());
+  if (!match) throw badRequest('The crest must be an image file');
+  const [, mime, base64] = match;
+  if (!LOGO_TYPES.includes(mime)) throw badRequest('Use a PNG, JPEG, WebP, GIF or SVG crest');
+  const buffer = Buffer.from(base64, 'base64');
+  if (!buffer.length) throw badRequest('That image could not be read');
+  if (buffer.length > MAX_LOGO_BYTES) throw badRequest('Crests must be under 256KB');
+  return { buffer, mime };
+}
+
+/** League admin: title, colours, crest, and how many opening picks to require. */
 leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
-  const body = parse(z.object({ name: z.string().trim().min(2).max(80) }), req.body);
-  run('UPDATE leagues SET name = ? WHERE id = ?', body.name, req.league.id);
-  audit(req.user.id, 'league.rename', 'league', req.league.id, { name: body.name });
-  res.json({ ok: true });
+  const body = parse(brandingSchema, req.body);
+  const league = req.league;
+  const context = leagueContext(league);
+
+  if (body.initialPicks !== undefined && body.initialPicks !== league.initial_picks) {
+    if (context.entryClosed && req.leagueRole !== 'super_admin') {
+      throw conflict('The opening picks can only change before the first kick off');
+    }
+    const ahead = get(
+      'SELECT COUNT(*) AS count FROM picks WHERE league_id = ? AND round_number > ?',
+      league.id, body.initialPicks,
+    ).count;
+    if (ahead > 0) {
+      throw conflict(
+        `Somebody has already picked beyond round ${body.initialPicks}. Raise the number, or clear those picks first.`,
+      );
+    }
+  }
+
+  let logo = { buffer: undefined, mime: undefined };
+  if (body.logo !== undefined) {
+    logo = body.logo === null ? { buffer: null, mime: null } : decodeLogo(body.logo);
+  }
+
+  run(
+    `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, initial_picks = ?,
+            logo_data = ?, logo_mime = ?
+     WHERE id = ?`,
+    body.name ?? league.name,
+    body.tagline === undefined ? league.tagline : body.tagline,
+    body.primaryColor ?? league.primary_color,
+    body.secondaryColor ?? league.secondary_color,
+    body.initialPicks ?? league.initial_picks,
+    logo.buffer === undefined ? league.logo_data : logo.buffer,
+    logo.buffer === undefined ? league.logo_mime : logo.mime,
+    league.id,
+  );
+  audit(req.user.id, 'league.branding_updated', 'league', league.id, {
+    name: body.name, tagline: body.tagline, primaryColor: body.primaryColor,
+    secondaryColor: body.secondaryColor, initialPicks: body.initialPicks,
+    logo: body.logo === undefined ? 'unchanged' : body.logo === null ? 'cleared' : 'updated',
+  });
+  const updated = get('SELECT * FROM leagues WHERE id = ?', league.id);
+  res.json({ league: summarise(updated, leagueContext(updated), req.entry, req.leagueRole) });
+}));
+
+/**
+ * Wave an eliminated player back in. Special circumstances happen — a fixture
+ * chaos week, a pick that never saved — and the league admin is the one who
+ * hears about it.
+ */
+leaguesRouter.post('/:leagueId/members/:entryId/reinstate', requireLeagueAdmin, wrap(async (req, res) => {
+  const body = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
+  const entry = get('SELECT * FROM entries WHERE id = ? AND league_id = ?',
+    Number(req.params.entryId), req.league.id);
+  if (!entry) throw notFound('That player is not in this league');
+  if (entry.status === 'active') throw conflict('They are still in — nothing to reinstate');
+
+  run(
+    `UPDATE entries SET status = 'active', eliminated_round = NULL, eliminated_reason = NULL,
+            eliminated_at = NULL, reinstated_at = ?, reinstated_by = ?, reinstated_reason = ?
+     WHERE id = ?`,
+    nowIso(), req.user.id, body.reason, entry.id,
+  );
+  // Reopening a league that had already crowned a winner.
+  if (req.league.status === 'completed') {
+    run("UPDATE leagues SET status = 'active', completed_at = NULL WHERE id = ?", req.league.id);
+    run('UPDATE entries SET is_winner = 0 WHERE league_id = ?', req.league.id);
+  }
+
+  const user = get('SELECT * FROM users WHERE id = ?', entry.user_id);
+  if (user) {
+    queueDirect(user, {
+      kind: 'reinstated',
+      league: req.league,
+      subject: `${req.league.name}: you are back in`,
+      body: [
+        `Hi ${user.display_name},`,
+        '',
+        `${req.user.display_name} has put you back into ${req.league.name}: ${body.reason}`,
+        'Make your pick for the next round to stay in it.',
+        '',
+        `${config.publicUrl}/leagues/${req.league.id}`,
+      ].join('\n'),
+    });
+  }
+  audit(req.user.id, 'league.member_reinstated', 'entry', entry.id, {
+    leagueId: req.league.id, reason: body.reason,
+  });
+  res.json({ ok: true, entry: get('SELECT * FROM entries WHERE id = ?', entry.id) });
 }));
 
 /** League admins can message their players (e.g. a nudge before a deadline). */

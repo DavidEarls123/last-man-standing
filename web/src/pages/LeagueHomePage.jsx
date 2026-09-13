@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useLeague } from '../league.jsx';
 import { Alert, Bar, Card, Countdown, Empty, Stat } from '../components/ui.jsx';
+import LeagueHeader from '../components/LeagueHeader.jsx';
 import { ELIMINATION_LABEL, OUTCOME_LABEL, formatDateTime } from '../lib/format.js';
 
 const outcomeClass = (result) => (result === 'survived' ? 'win' : result === 'eliminated' ? 'lost' : '');
@@ -14,18 +15,13 @@ export default function LeagueHomePage() {
 
   return (
     <div className="stack">
-      <div className="spread">
-        <div className="grow">
-          <h1>{league.league.name}</h1>
-          <div className="small muted">
-            Starts gameweek {league.league.startGameweek} · {league.league.teamCount} teams
-            {league.league.status === 'completed' && ' · Completed'}
-          </div>
-        </div>
+      <LeagueHeader league={league.league}>
         {entry?.isWinner
-          ? <span className="badge badge-gold">Winner</span>
-          : isPlayer && <span className={`badge ${isOut ? 'badge-out' : 'badge-in'}`}>{isOut ? 'Out' : 'Still in'}</span>}
-      </div>
+          ? <span className="badge badge-gold">🏆 Winner</span>
+          : isPlayer && (
+            <span className={`badge ${isOut ? 'badge-out' : 'badge-in'}`}>{isOut ? 'Out' : 'Still in'}</span>
+          )}
+      </LeagueHeader>
 
       {isOut && (
         <Alert tone="warn">
@@ -42,6 +38,17 @@ export default function LeagueHomePage() {
           <Link to={`/leagues/${league.league.id}/pick`}>Make your picks</Link>
         </Alert>
       )}
+
+      {league.reselection?.map((item) => (
+        <Alert tone="warn" key={item.round}>
+          <strong>{item.team}</strong>'s round {item.round} game is off, so that pick no longer counts —
+          and {item.team} goes back in your pool.{' '}
+          {item.deadline
+            ? <>Pick again within <Countdown deadline={item.deadline} />.{' '}
+                <Link to={`/leagues/${league.league.id}/pick`}>Choose a replacement</Link></>
+            : 'There is nothing left to switch to, so you go through to the next round.'}
+        </Alert>
+      ))}
 
       {league.league.entryClosed && needsPick && (
         <Alert tone="warn">
@@ -85,8 +92,14 @@ export default function LeagueHomePage() {
                   <span className="tiny dim">GW{pick.gameweek}</span>
                 </div>
                 <div className="grow">
-                  <div className="strong">{pick.team}</div>
-                  <div className="tiny muted">{formatDateTime(pick.deadline)}</div>
+                  <div className="strong">
+                    {pick.team}
+                    {pick.autoAssigned && <span className="badge badge-warn" style={{ marginLeft: 7 }}>Auto</span>}
+                    {pick.needsReselect && <span className="badge badge-warn" style={{ marginLeft: 7 }}>Pick again</span>}
+                  </div>
+                  <div className="tiny muted">
+                    {pick.autoAssigned ? 'Given to you — no pick before the deadline' : formatDateTime(pick.deadline)}
+                  </div>
                 </div>
                 <span className={`badge ${
                   pick.result === 'survived' ? 'badge-in' : pick.result === 'eliminated' ? 'badge-out' : 'badge-pending'

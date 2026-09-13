@@ -10,7 +10,8 @@ export const db = new DatabaseSync(config.databaseFile);
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA foreign_keys = ON');
 db.exec('PRAGMA busy_timeout = 5000');
-db.exec(fs.readFileSync(path.join(import.meta.dirname, 'schema.sql'), 'utf8'));
+const schema = fs.readFileSync(path.join(import.meta.dirname, 'schema.sql'), 'utf8');
+db.exec(schema);
 
 /** Add a column to an existing database if the schema has grown since it was created. */
 function ensureColumn(table, column, definition) {
@@ -18,7 +19,51 @@ function ensureColumn(table, column, definition) {
   if (columns.some((entry) => entry.name === column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
+
 ensureColumn('notifications', 'meta', 'TEXT');
+ensureColumn('leagues', 'tagline', 'TEXT');
+ensureColumn('leagues', 'primary_color', "TEXT NOT NULL DEFAULT '#1f9d55'");
+ensureColumn('leagues', 'secondary_color', "TEXT NOT NULL DEFAULT '#2f6df6'");
+ensureColumn('leagues', 'logo_data', 'BLOB');
+ensureColumn('leagues', 'logo_mime', 'TEXT');
+ensureColumn('entries', 'reinstated_at', 'TEXT');
+ensureColumn('entries', 'reinstated_by', 'INTEGER');
+ensureColumn('entries', 'reinstated_reason', 'TEXT');
+ensureColumn('picks', 'needs_reselect', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('picks', 'reselect_deadline', 'TEXT');
+ensureColumn('picks', 'auto_assigned', 'INTEGER NOT NULL DEFAULT 0');
+
+/**
+ * Older databases carry `UNIQUE(entry_id, cycle, team_id)` inline on `picks`.
+ * A pick voided by a called-off fixture should free that club up again, which
+ * needs a partial index instead, and SQLite cannot drop a table constraint —
+ * so rebuild the table when the old shape is found.
+ */
+(function migratePicksTeamConstraint() {
+  const table = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'picks'").get();
+  if (!table || !/UNIQUE\s*\(\s*entry_id\s*,\s*cycle\s*,\s*team_id\s*\)/i.test(table.sql)) return;
+
+  const columns = db.prepare('PRAGMA table_info(picks)').all().map((column) => column.name).join(', ');
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec('ALTER TABLE picks RENAME TO picks_legacy');
+    db.exec(schema.slice(schema.indexOf('CREATE TABLE IF NOT EXISTS picks'),
+      schema.indexOf('CREATE TABLE IF NOT EXISTS settings')));
+    db.exec(`INSERT INTO picks (${columns}) SELECT ${columns} FROM picks_legacy`);
+    db.exec('DROP TABLE picks_legacy');
+    db.exec('COMMIT');
+    // The legacy table owned index names until it was dropped, so the fresh
+    // indexes have to be created after it is gone.
+    db.exec(schema);
+    console.log('[db] rebuilt picks table so voided picks free their club again');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+})();
 
 /** Run `fn` inside a transaction, rolling back if it throws. */
 export function transaction(fn) {

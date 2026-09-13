@@ -139,8 +139,8 @@ const leagueSchema = z.object({
   adminEmail: emailSchema.optional(),
   initialPicks: z.number().int().min(1).max(10).default(3),
   drawPolicy: z.enum(['eliminate', 'survive']).default('eliminate'),
-  voidPolicy: z.enum(['eliminate', 'survive']).default('eliminate'),
-  noPickPolicy: z.enum(['eliminate', 'random']).default('eliminate'),
+  voidPolicy: z.enum(['reselect', 'eliminate', 'survive']).default('reselect'),
+  noPickPolicy: z.enum(['auto_alphabetical', 'eliminate']).default('auto_alphabetical'),
   maxEntries: z.number().int().min(2).nullable().optional(),
 });
 

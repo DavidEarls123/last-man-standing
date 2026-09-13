@@ -64,13 +64,25 @@ export default function LeagueListPage() {
       {data?.leagues.map((league) => {
         const survivalPct = league.totalEntries ? (league.active / league.totalEntries) * 100 : 0;
         return (
-          <Link key={league.id} to={`/leagues/${league.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Link
+            key={league.id}
+            to={`/leagues/${league.id}`}
+            style={{
+              textDecoration: 'none',
+              color: 'inherit',
+              '--brand': league.primaryColor,
+              '--brand-2': league.secondaryColor,
+            }}
+          >
             <Card>
               <div className="spread">
+                {league.logoUrl
+                  ? <img className="logo-preview" style={{ width: 44, height: 44 }} src={league.logoUrl} alt="" />
+                  : <div className="logo-preview" style={{ width: 44, height: 44, display: 'grid', placeItems: 'center' }}>🏆</div>}
                 <div className="grow">
                   <h2>{league.name}</h2>
                   <div className="small muted">
-                    Starts gameweek {league.startGameweek} · {league.totalEntries} entrant
+                    {league.tagline || `Starts gameweek ${league.startGameweek}`} · {league.totalEntries} entrant
                     {league.totalEntries === 1 ? '' : 's'}
                   </div>
                 </div>

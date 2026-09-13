@@ -12,12 +12,15 @@ export default function PickPage() {
 
   // Before the entry deadline you choose the whole opening block; after it,
   // just the next round.
+  const reselect = league.reselection ?? [];
   const rounds = useMemo(() => {
-    if (!info.entryClosed) {
-      return Array.from({ length: info.initialPicks }, (_, index) => index + 1);
-    }
-    return info.nextOpenRound ? [info.nextOpenRound] : [];
-  }, [info.entryClosed, info.initialPicks, info.nextOpenRound]);
+    const open = !info.entryClosed
+      ? Array.from({ length: info.initialPicks }, (_, index) => index + 1)
+      : info.nextOpenRound ? [info.nextOpenRound] : [];
+    // A round whose fixture was called off reopens, even past its deadline.
+    return [...new Set([...reselect.map((item) => item.round), ...open])].sort((a, b) => a - b);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info.entryClosed, info.initialPicks, info.nextOpenRound, JSON.stringify(reselect)]);
 
   const [round, setRound] = useState(rounds[0] ?? 1);
   const [teams, setTeams] = useState(null);
@@ -27,6 +30,7 @@ export default function PickPage() {
   const [busy, setBusy] = useState(false);
 
   const existing = picks.find((pick) => pick.round === round);
+  const reselecting = reselect.find((item) => item.round === round);
 
   useEffect(() => {
     setTeams(null);
@@ -71,7 +75,7 @@ export default function PickPage() {
         <p className="muted small" style={{ marginTop: 4 }}>
           {info.entryClosed
             ? 'One pick per round, and never the same team twice in a cycle.'
-            : `Choose all ${info.initialPicks} opening rounds before entries close — ` }
+            : `Choose all ${info.initialPicks} opening round${info.initialPicks === 1 ? '' : 's'} before entries close — ` }
           {!info.entryClosed && <Countdown deadline={info.entryDeadline} />}
         </p>
       </div>
@@ -94,7 +98,13 @@ export default function PickPage() {
         </div>
       )}
 
-      {existing && (
+      {reselecting ? (
+        <Alert tone="warn">
+          <strong>{reselecting.team}</strong>'s game is off, so pick again from whatever has not kicked off
+          yet{reselecting.deadline ? <> — <Countdown deadline={reselecting.deadline} /> left</> : ''}.
+          {' '}{reselecting.team} stays available for a later round.
+        </Alert>
+      ) : existing && (
         <Alert tone="info">
           Your round {round} pick is <strong>{existing.team}</strong>. You can change it until the deadline.
         </Alert>
@@ -104,7 +114,7 @@ export default function PickPage() {
       {!teams && !error && <Spinner />}
 
       {teams && (
-        <Card title={`Round ${round} — pick a winner`}>
+        <Card title={reselecting ? `Round ${round} — replacement pick` : `Round ${round} — pick a winner`}>
           <div className="grid-auto">
             {teams.map((team) => {
               const isSelected = selected === team.teamId
@@ -119,7 +129,11 @@ export default function PickPage() {
                 >
                   <span className="team-name">{team.name}</span>
                   <span className="team-meta">
-                    {team.isCurrentPick && team.fixture
+                    {!team.available && team.fixture && !team.usedInRound
+                      ? ['postponed', 'abandoned'].includes(team.fixture.status)
+                        ? 'Game called off'
+                        : 'Already kicked off'
+                      : team.isCurrentPick && team.fixture
                       ? `Your pick · ${team.fixture.home ? 'v' : 'at'} ${team.fixture.opponentShort}`
                       : team.usedInRound
                       ? `Used in round ${team.usedInRound}`
@@ -143,7 +157,7 @@ export default function PickPage() {
             </button>
           </div>
           <p className="tiny dim" style={{ marginBottom: 0, marginTop: 10 }}>
-            Greyed-out clubs are ones you have already used this cycle, or who have no fixture.
+            Greyed-out clubs are ones you have already used this cycle, or who have no game left to play.
             A draw counts as not winning unless your league says otherwise.
           </p>
         </Card>

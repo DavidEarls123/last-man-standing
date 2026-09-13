@@ -7,6 +7,7 @@ import { gameweekForLeagueRound, leagueContext } from './leagues.js';
 export const entryPicks = (entryId) =>
   all(
     `SELECT p.id, p.round_number, p.cycle, p.outcome, p.result, p.team_id, p.created_at, p.updated_at,
+            p.needs_reselect, p.reselect_deadline, p.auto_assigned,
             t.name AS team_name, t.short_name AS team_short,
             g.number AS gameweek, g.deadline
      FROM picks p
@@ -18,7 +19,7 @@ export const entryPicks = (entryId) =>
   );
 
 export const usedPicks = (entryId) =>
-  all('SELECT team_id, cycle, round_number FROM picks WHERE entry_id = ?', entryId);
+  all('SELECT team_id, cycle, round_number, outcome FROM picks WHERE entry_id = ?', entryId);
 
 /** The fixture a team plays in a gameweek, or null for a blank gameweek. */
 export const fixtureForTeam = (gameweekId, teamId) =>
@@ -36,7 +37,7 @@ export function availableTeamsForRound(league, entry, round) {
   const cycle = cycleForRound(round, context.teamCount || 1);
   // A pick already made for THIS round is not "used up" — it is the current
   // choice, and can be kept or swapped until the deadline.
-  const currentPick = picks.find((pick) => pick.round_number === round) ?? null;
+  const currentPick = get('SELECT * FROM picks WHERE entry_id = ? AND round_number = ?', entry.id, round);
   const otherPicks = picks.filter((pick) => pick.round_number !== round);
   const usedThisCycle = new Map(
     otherPicks.filter((pick) => pick.cycle === cycle).map((pick) => [pick.team_id, pick.round_number]),
@@ -45,21 +46,36 @@ export function availableTeamsForRound(league, entry, round) {
     availableTeams(context.teams, otherPicks, round, context.teamCount || 1).map((team) => team.id),
   );
 
+  // Replacing a pick after the deadline (because the fixture was called off)
+  // may only use teams whose own game has not started yet.
+  const reselecting = Boolean(currentPick?.needs_reselect);
+  const startedTeams = new Set();
+  if (reselecting) {
+    for (const fixture of all('SELECT * FROM fixtures WHERE gameweek_id = ?', gameweek.id)) {
+      if (new Date(fixture.kickoff).getTime() > Date.now() && fixture.status === 'scheduled') continue;
+      startedTeams.add(fixture.home_team_id);
+      startedTeams.add(fixture.away_team_id);
+    }
+  }
+
   return context.teams.map((team) => {
     const fixture = fixtureForTeam(gameweek.id, team.id);
+    const playable = Boolean(fixture) && !['postponed', 'abandoned'].includes(fixture?.status)
+      && !startedTeams.has(team.id);
     const opponentId = fixture ? (fixture.home_team_id === team.id ? fixture.away_team_id : fixture.home_team_id) : null;
     const opponent = opponentId ? context.teams.find((candidate) => candidate.id === opponentId) : null;
     return {
       teamId: team.id,
       name: team.name,
       shortName: team.short_name,
-      available: open.has(team.id) && Boolean(fixture),
+      available: open.has(team.id) && playable,
       usedInRound: usedThisCycle.get(team.id) ?? null,
       isCurrentPick: currentPick?.team_id === team.id,
       fixture: fixture
         ? {
             id: fixture.id,
             kickoff: fixture.kickoff,
+            status: fixture.status,
             home: fixture.home_team_id === team.id,
             opponent: opponent?.name ?? null,
             opponentShort: opponent?.short_name ?? null,
@@ -73,7 +89,7 @@ export function availableTeamsForRound(league, entry, round) {
  * Record (or change) a pick. Picks stay editable right up to that gameweek's
  * deadline; after the deadline they are locked.
  */
-export function submitPick({ league, entry, round, teamId, actorUserId, override = false }) {
+export function submitPick({ league, entry, round, teamId, actorUserId, override = false, autoAssigned = false }) {
   const context = leagueContext(league);
   const gameweek = gameweekForLeagueRound(league, round);
   if (!gameweek) throw notFound(`Round ${round} has no gameweek in this season`);
@@ -82,6 +98,16 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
   if (!team) throw badRequest('Unknown team for this season');
 
   const fixture = fixtureForTeam(gameweek.id, team.id);
+  const existingPick = get('SELECT * FROM picks WHERE entry_id = ? AND gameweek_id = ?', entry.id, gameweek.id);
+  const reselecting = Boolean(existingPick?.needs_reselect);
+
+  if (reselecting && !override) {
+    // The replacement has to be a game that has not kicked off yet.
+    if (!fixture || ['postponed', 'abandoned'].includes(fixture.status)
+        || new Date(fixture.kickoff).getTime() <= Date.now() || fixture.status !== 'scheduled') {
+      throw conflict('Pick a team whose game has not kicked off yet.', { code: 'already_started' });
+    }
+  }
 
   if (!override) {
     const verdict = validatePick({
@@ -95,12 +121,13 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
       deadlinePassed: new Date(gameweek.deadline).getTime() <= Date.now(),
       entryDeadlinePassed: context.entryClosed,
       initialPicks: league.initial_picks,
+      reselecting,
     });
     if (!verdict.ok) throw conflict(verdict.message, { code: verdict.code });
   }
 
   const cycle = cycleForRound(round, context.teamCount || 1);
-  const existing = get('SELECT * FROM picks WHERE entry_id = ? AND gameweek_id = ?', entry.id, gameweek.id);
+  const existing = existingPick;
   const now = nowIso();
 
   if (existing) {
@@ -108,19 +135,21 @@ export function submitPick({ league, entry, round, teamId, actorUserId, override
       throw conflict('That round has already been settled.');
     }
     run(
-      'UPDATE picks SET team_id = ?, cycle = ?, outcome = \'pending\', result = \'pending\', updated_at = ? WHERE id = ?',
-      team.id, cycle, now, existing.id,
+      `UPDATE picks SET team_id = ?, cycle = ?, outcome = 'pending', result = 'pending',
+              needs_reselect = 0, reselect_deadline = NULL, auto_assigned = ?, updated_at = ?
+       WHERE id = ?`,
+      team.id, cycle, autoAssigned ? 1 : 0, now, existing.id,
     );
   } else {
     run(
-      `INSERT INTO picks (entry_id, league_id, gameweek_id, round_number, cycle, team_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      entry.id, league.id, gameweek.id, round, cycle, team.id, now, now,
+      `INSERT INTO picks (entry_id, league_id, gameweek_id, round_number, cycle, team_id, auto_assigned, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      entry.id, league.id, gameweek.id, round, cycle, team.id, autoAssigned ? 1 : 0, now, now,
     );
   }
 
   audit(actorUserId, existing ? 'pick.update' : 'pick.create', 'entry', entry.id, {
-    leagueId: league.id, round, teamId: team.id, override,
+    leagueId: league.id, round, teamId: team.id, override, autoAssigned, reselecting,
   });
   return get('SELECT * FROM picks WHERE entry_id = ? AND gameweek_id = ?', entry.id, gameweek.id);
 }

@@ -86,8 +86,8 @@ export function generateJoinCode() {
 
 export function createLeague({
   name, seasonId, startGameweek, adminUserId, createdBy,
-  initialPicks = 3, drawPolicy = 'eliminate', voidPolicy = 'eliminate',
-  noPickPolicy = 'eliminate', maxEntries = null,
+  initialPicks = 3, drawPolicy = 'eliminate', voidPolicy = 'reselect',
+  noPickPolicy = 'auto_alphabetical', maxEntries = null,
 }) {
   const gameweek = get('SELECT * FROM gameweeks WHERE season_id = ? AND number = ?', seasonId, startGameweek);
   if (!gameweek) throw notFound(`Gameweek ${startGameweek} does not exist in that season`);
