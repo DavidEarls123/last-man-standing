@@ -380,6 +380,42 @@ test('results are cross-checked and the check is visible to everyone', async () 
   assert.equal(platform.body.failing, 0);
 });
 
+test('a crest can be a ready-made icon instead of an upload', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+
+  const icons = await alice('GET', '/api/leagues/icons');
+  assert.equal(icons.status, 200);
+  assert.ok(icons.body.icons.length >= 20);
+  assert.ok(icons.body.icons.every((icon) => icon.key && icon.emoji && icon.label && icon.group));
+  assert.ok(['Sport', 'Animals', 'General'].every(
+    (group) => icons.body.icons.some((icon) => icon.group === group),
+  ), 'sport, animals and general are all covered');
+
+  const chosen = await alice('PATCH', `/api/leagues/${league.id}`, { logoPreset: 'lion' });
+  assert.equal(chosen.status, 200, JSON.stringify(chosen.body));
+  assert.equal(chosen.body.league.logoPreset, 'lion');
+  assert.equal(chosen.body.league.logoUrl, null, 'choosing an icon clears the uploaded image');
+
+  const madeUp = await alice('PATCH', `/api/leagues/${league.id}`, { logoPreset: 'unicorn-rampant' });
+  assert.equal(madeUp.status, 400, 'only crests from the list are accepted');
+
+  // Uploading again replaces the icon.
+  const uploaded = await alice('PATCH', `/api/leagues/${league.id}`, { logo: PNG });
+  assert.equal(uploaded.body.league.logoPreset, null);
+  assert.ok(uploaded.body.league.logoUrl);
+
+  // Stored images are served inertly, whatever they claim to be.
+  const served = await fetch(`${base}/api/leagues/${league.id}/logo`);
+  assert.match(served.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+  assert.equal(served.headers.get('x-content-type-options'), 'nosniff');
+
+  // SVG is not accepted: it can carry script and we serve from our own origin.
+  const svg = await alice('PATCH', `/api/leagues/${league.id}`, {
+    logo: 'data:image/svg+xml;base64,PHN2Zz48c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ+PC9zdmc+',
+  });
+  assert.equal(svg.status, 400);
+});
+
 test('a league admin can put an eliminated player back in', async () => {
   const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
   const entry = get(

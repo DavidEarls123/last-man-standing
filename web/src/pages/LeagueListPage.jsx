@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Alert, Bar, Card, Countdown, Empty, Spinner, useAsync } from '../components/ui.jsx';
+import LeagueCrest from '../components/LeagueCrest.jsx';
 
 export default function LeagueListPage() {
   const { user } = useAuth();
@@ -76,9 +77,7 @@ export default function LeagueListPage() {
           >
             <Card>
               <div className="spread">
-                {league.logoUrl
-                  ? <img className="logo-preview" style={{ width: 44, height: 44 }} src={league.logoUrl} alt="" />
-                  : <div className="logo-preview" style={{ width: 44, height: 44, display: 'grid', placeItems: 'center' }}>🏆</div>}
+                <LeagueCrest league={league} className="logo-preview" size={44} />
                 <div className="grow">
                   <h2>{league.name}</h2>
                   <div className="small muted">

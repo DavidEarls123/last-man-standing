@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS leagues (
   secondary_color    TEXT NOT NULL DEFAULT '#2f6df6',
   logo_data          BLOB,
   logo_mime          TEXT,
+  logo_preset        TEXT,          -- a ready-made crest instead of an upload
   -- Setup locks once the admin says it is final; only the super admin reopens it.
   config_locked_at   TEXT,
   config_locked_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,

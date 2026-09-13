@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { Alert, Card, Countdown, Spinner } from '../components/ui.jsx';
+import LeagueCrest from '../components/LeagueCrest.jsx';
 
 export default function JoinPage() {
   const { code } = useParams();
@@ -36,9 +37,7 @@ export default function JoinPage() {
     <div style={{ '--brand': preview.primaryColor, '--brand-2': preview.secondaryColor }}>
     <Card>
       <div className="row" style={{ marginBottom: 10 }}>
-        {preview.logoUrl
-          ? <img className="logo-preview" src={preview.logoUrl} alt={`${preview.name} crest`} />
-          : <div className="logo-preview" style={{ display: 'grid', placeItems: 'center', fontSize: 28 }}>🏆</div>}
+        <LeagueCrest league={preview} className="logo-preview" />
         <div className="grow">
           <h1>{preview.name}</h1>
           {preview.tagline && <div className="small muted">{preview.tagline}</div>}

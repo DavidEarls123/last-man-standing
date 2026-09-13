@@ -60,6 +60,16 @@ across every screen, since a stray wide element is the usual way responsive layo
 - **Player** — one account, any number of leagues. Joins with a code, makes picks, follows
   along after elimination.
 
+## Getting it live
+
+[**DEPLOYMENT.md**](DEPLOYMENT.md) is the full walkthrough: hosting, the
+database (a SQLite file — nothing to set up), a domain and HTTPS, email and SMS
+providers, real fixtures, two-factor and admin recovery, backups and a
+pre-launch checklist.
+
+The short version: it needs one always-on Node process with a persistent disk,
+so a small VPS or Fly.io rather than Vercel or GitHub Pages.
+
 ## Getting started
 
 ```bash
@@ -111,8 +121,9 @@ Under **Manage**, a league admin sets:
 - the **title** and an optional tagline
 - **two colours**, which theme that league throughout — header, buttons, progress bars,
   the active tab — so entrants in several leagues can tell them apart at a glance
-- a **crest**, uploaded from the phone or desktop and shrunk to 256px in the browser
-  before it is sent (PNG, JPEG, WebP, GIF or SVG, under 256KB)
+- a **crest**: either one of 28 ready-made icons (footballs, trophies, animals, a pint) or
+  an uploaded image, shrunk to 256px in the browser before it is sent (PNG, JPEG, WebP or
+  GIF, under 256KB)
 - an optional **opening block** of 2 to 10 locked rounds, due before the first kick off
 
 Colours and crest show up on the invite preview too, so a join link looks like the league.

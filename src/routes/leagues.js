@@ -19,6 +19,7 @@ import {
 import {
   OPENING_PICKS_MAX, OPENING_PICKS_MIN, isValidOpeningPicks, openPickRounds, outstandingOpeningRounds,
 } from '../domain/rules.js';
+import { LEAGUE_ICONS, isLeagueIcon } from '../domain/leagueIcons.js';
 import { addClient } from '../services/live.js';
 import { verifyLeague } from '../services/verification.js';
 import { queueDirect } from '../services/notifications.js';
@@ -32,6 +33,7 @@ const summarise = (league, context, entry, role) => ({
   primaryColor: league.primary_color,
   secondaryColor: league.secondary_color,
   logoUrl: league.logo_mime ? `/api/leagues/${league.id}/logo` : null,
+  logoPreset: league.logo_preset,
   joinCode: role === 'admin' || role === 'super_admin' ? league.join_code : undefined,
   status: league.status,
   startGameweek: league.start_gameweek,
@@ -108,6 +110,7 @@ leaguesRouter.get('/preview/:code', wrap(async (req, res) => {
     primaryColor: league.primary_color,
     secondaryColor: league.secondary_color,
     logoUrl: league.logo_mime ? `/api/leagues/${league.id}/logo` : null,
+  logoPreset: league.logo_preset,
     startGameweek: league.start_gameweek,
     entryDeadline: context.entryDeadline,
     entryClosed: context.entryClosed,
@@ -116,12 +119,18 @@ leaguesRouter.get('/preview/:code', wrap(async (req, res) => {
   });
 }));
 
+/** The ready-made crests an admin can choose instead of uploading one. */
+leaguesRouter.get('/icons', (req, res) => res.json({ icons: LEAGUE_ICONS }));
+
 /** League crest. Public so invite links and sign-in screens can show it. */
 leaguesRouter.get('/:leagueId/logo', wrap(async (req, res) => {
   const league = get('SELECT logo_data, logo_mime FROM leagues WHERE id = ?', Number(req.params.leagueId));
   if (!league?.logo_data) throw notFound('This league has no crest');
   res.set('Content-Type', league.logo_mime);
   res.set('Cache-Control', 'public, max-age=300');
+  // An uploaded file should never be able to run as a document on our origin.
+  res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+  res.set('X-Content-Type-Options', 'nosniff');
   res.send(Buffer.from(league.logo_data));
 }));
 
@@ -426,16 +435,20 @@ const brandingSchema = z.object({
     .optional(),
   // A data: URL from the crest upload, or null to clear it.
   logo: z.string().max(400_000).nullable().optional(),
+  // Or one of the ready-made crests, by key.
+  logoPreset: z.string().trim().max(40).nullable().optional()
+    .refine((value) => value == null || isLeagueIcon(value), 'Unknown crest'),
 });
 
-const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'];
+// No SVG: it can carry script, and we serve crests from our own origin.
+const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 const MAX_LOGO_BYTES = 256 * 1024;
 
 function decodeLogo(dataUrl) {
   const match = /^data:([\w/+.-]+);base64,(.+)$/s.exec(dataUrl.trim());
   if (!match) throw badRequest('The crest must be an image file');
   const [, mime, base64] = match;
-  if (!LOGO_TYPES.includes(mime)) throw badRequest('Use a PNG, JPEG, WebP, GIF or SVG crest');
+  if (!LOGO_TYPES.includes(mime)) throw badRequest('Use a PNG, JPEG, WebP or GIF crest');
   const buffer = Buffer.from(base64, 'base64');
   if (!buffer.length) throw badRequest('That image could not be read');
   if (buffer.length > MAX_LOGO_BYTES) throw badRequest('Crests must be under 256KB');
@@ -461,14 +474,18 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
   }
 
 
+  // An upload and a ready-made crest are alternatives: choosing one clears the other.
   let logo = { buffer: undefined, mime: undefined };
+  let preset = body.logoPreset === undefined ? league.logo_preset : body.logoPreset;
   if (body.logo !== undefined) {
     logo = body.logo === null ? { buffer: null, mime: null } : decodeLogo(body.logo);
+    if (logo.buffer) preset = null;
   }
+  if (body.logoPreset) logo = { buffer: null, mime: null };
 
   run(
     `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, opening_picks = ?,
-            logo_data = ?, logo_mime = ?
+            logo_data = ?, logo_mime = ?, logo_preset = ?
      WHERE id = ?`,
     body.name ?? league.name,
     body.tagline === undefined ? league.tagline : body.tagline,
@@ -477,12 +494,14 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
     body.openingPicks ?? league.opening_picks,
     logo.buffer === undefined ? league.logo_data : logo.buffer,
     logo.buffer === undefined ? league.logo_mime : logo.mime,
+    preset,
     league.id,
   );
   audit(req.user.id, 'league.branding_updated', 'league', league.id, {
     name: body.name, tagline: body.tagline, primaryColor: body.primaryColor,
     secondaryColor: body.secondaryColor, openingPicks: body.openingPicks,
     logo: body.logo === undefined ? 'unchanged' : body.logo === null ? 'cleared' : 'updated',
+    logoPreset: preset,
     // Worth recording separately: an edit that went through a closed lock.
     supersededLock: context.configLocked && isSuperAdmin,
   });

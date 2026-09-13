@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Alert, Card } from './ui.jsx';
+import { leagueIcons } from '../lib/icons.js';
 
 const MAX_DIMENSION = 256;
 
@@ -48,10 +49,14 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
     openingPicks: league.openingPicks,
   });
   const [logo, setLogo] = useState(undefined); // undefined = unchanged, null = remove
+  const [preset, setPreset] = useState(league.logoPreset ?? null);
+  const [icons, setIcons] = useState([]);
   const [preview, setPreview] = useState(league.logoUrl);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const fileInput = useRef(null);
+
+  useEffect(() => { leagueIcons().then(setIcons).catch(() => {}); }, []);
 
   const update = (field) => (event) => setForm({ ...form, [field]: event.target.value });
 
@@ -63,6 +68,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
       const dataUrl = await readCrest(file);
       setLogo(dataUrl);
       setPreview(dataUrl);
+      setPreset(null); // an upload replaces a chosen icon
     } catch (readError) {
       setError(readError.message);
     }
@@ -80,6 +86,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         secondaryColor: form.secondaryColor,
         openingPicks: Number(form.openingPicks),
         ...(logo === undefined ? {} : { logo }),
+        logoPreset: preset,
       });
       setLogo(undefined);
       setPreview(result.league.logoUrl ? `${result.league.logoUrl}?v=${Date.now()}` : null);
@@ -151,19 +158,53 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
           <div className="row">
             {preview
               ? <img className="logo-preview" src={preview} alt="League crest" />
-              : <div className="logo-preview" style={{ display: 'grid', placeItems: 'center', fontSize: 26 }}>🏆</div>}
+              : (
+                <div className="logo-preview" style={{ display: 'grid', placeItems: 'center', fontSize: 26 }}>
+                  {preset ? icons.find((icon) => icon.key === preset)?.emoji ?? '🏆' : '🏆'}
+                </div>
+              )}
             <div className="grow stack" style={{ gap: 8 }}>
-              <input ref={fileInput} type="file" accept="image/*" onChange={chooseFile} disabled={readOnly} />
-              {preview && !readOnly && (
+              <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={chooseFile} disabled={readOnly} />
+              {(preview || preset) && !readOnly && (
                 <button className="btn-ghost btn-sm" type="button" onClick={() => {
                   setLogo(null);
+                  setPreset(null);
                   setPreview(null);
                   if (fileInput.current) fileInput.current.value = '';
-                }}>Remove crest</button>
+                }}>Clear crest</button>
               )}
             </div>
           </div>
-          <span className="tiny dim">Shrunk to 256px before upload. PNG, JPEG, WebP, GIF or SVG.</span>
+          <span className="tiny dim">Shrunk to 256px before upload. PNG, JPEG, WebP or GIF.</span>
+        </div>
+
+        <div className="field">
+          Or pick one
+          <div className="icon-picker">
+            {icons.map((icon) => (
+              <button
+                key={icon.key}
+                type="button"
+                title={`${icon.label} (${icon.group})`}
+                aria-label={icon.label}
+                aria-pressed={preset === icon.key}
+                className={`icon-choice${preset === icon.key ? ' selected' : ''}`}
+                disabled={readOnly}
+                onClick={() => {
+                  setPreset(icon.key);
+                  setLogo(null);
+                  setPreview(null);
+                  if (fileInput.current) fileInput.current.value = '';
+                }}
+              >
+                <span aria-hidden="true">{icon.emoji}</span>
+              </button>
+            ))}
+          </div>
+          <span className="tiny dim">
+            Football, animals and a few others — no image needed.
+          </span>
         </div>
 
         <label className="field">
