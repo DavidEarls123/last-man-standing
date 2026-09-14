@@ -70,6 +70,10 @@ export function leagueContext(leagueOrId) {
     entryClosed,
     // Settings, rules and branding freeze once the admin locks them in, and in
     // any case once the first ball is kicked. Only the super admin reopens them.
+    // A league is live once its admin has confirmed and launched it. Until
+    // then it is a draft: no invite link, and nobody can join.
+    launched: Boolean(league.launched_at),
+    launchedAt: league.launched_at,
     configLocked: Boolean(league.config_locked_at) || entryClosed,
     configLockedAt: league.config_locked_at,
     configLockReason: league.config_locked_at ? 'locked_by_admin' : entryClosed ? 'competition_started' : null,
@@ -94,6 +98,9 @@ export function createLeague({
   name, seasonId, startGameweek, adminUserId, createdBy,
   openingPicks = 0, drawPolicy = 'eliminate', voidPolicy = 'reselect',
   noPickPolicy = 'auto_alphabetical', maxEntries = null,
+  // A league starts as a draft. Its admin confirms and launches it, which is
+  // what issues the invite code and lets anyone join.
+  launched = false,
 }) {
   const gameweek = get('SELECT * FROM gameweeks WHERE season_id = ? AND number = ?', seasonId, startGameweek);
   if (!gameweek) throw notFound(`Gameweek ${startGameweek} does not exist in that season`);
@@ -102,10 +109,11 @@ export function createLeague({
   const result = run(
     `INSERT INTO leagues
       (name, join_code, season_id, start_gameweek, status, admin_user_id, created_by_user_id,
-       opening_picks, draw_policy, void_policy, no_pick_policy, max_entries, created_at)
-     VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
+       opening_picks, draw_policy, void_policy, no_pick_policy, max_entries, launched_at, created_at)
+     VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     name, joinCode, seasonId, startGameweek, adminUserId ?? null, createdBy,
-    openingPicks, drawPolicy, voidPolicy, noPickPolicy, maxEntries, nowIso(),
+    openingPicks, drawPolicy, voidPolicy, noPickPolicy, maxEntries,
+    launched ? nowIso() : null, nowIso(),
   );
   const leagueId = Number(result.lastInsertRowid);
   audit(createdBy, 'league.create', 'league', leagueId, { name, startGameweek, joinCode });
@@ -125,6 +133,9 @@ export function joinLeague(league, userId, { force = false } = {}) {
   if (existing) return existing;
 
   const context = leagueContext(league);
+  if (!league.launched_at && !force) {
+    throw conflict('This league has not been launched yet — its admin is still setting it up');
+  }
   if (context.entryClosed && !force) {
     throw conflict('Entries closed at the first kick off of gameweek ' + league.start_gameweek);
   }

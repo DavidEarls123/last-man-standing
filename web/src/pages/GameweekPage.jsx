@@ -177,6 +177,8 @@ export default function GameweekPage() {
       {live && (
         <Card title="Fixtures and live scores">
           {live.fixtures.length === 0 && <Empty>No fixtures for this round.</Empty>}
+          {/* A list on a phone, two columns of five once there is room. */}
+          <div className="fixture-grid">
           {live.fixtures.map((fixture) => (
             <div key={fixture.id} className="fixture">
               <div className="spread tiny muted">
@@ -203,6 +205,7 @@ export default function GameweekPage() {
               })}
             </div>
           ))}
+          </div>
           <p className="tiny dim" style={{ margin: '10px 0 0' }}>
             The count beside each team is how many entrants in this league are riding on them.
           </p>

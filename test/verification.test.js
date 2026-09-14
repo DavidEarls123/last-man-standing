@@ -38,6 +38,7 @@ function makeUser(name) {
 /** A settled round: two entrants, one wins, one loses. */
 function playedLeague(name, startGameweek) {
   const league = createLeague({
+    launched: true,
     name, seasonId: season.seasonId, startGameweek, createdBy: makeUser('owner').id,
   });
   const pool = teams();
@@ -125,6 +126,7 @@ test('someone still in after a losing pick is caught', () => {
 
 test('the same club used twice in a cycle is caught', () => {
   const league = createLeague({
+    launched: true,
     name: 'Double dip', seasonId: season.seasonId, startGameweek: 10, createdBy: makeUser('owner').id,
   });
   const entry = joinLeague(league, makeUser('cheat').id, { force: true });
@@ -147,6 +149,7 @@ test('the same club used twice in a cycle is caught', () => {
 
 test('the database itself refuses to reuse a club inside a cycle', () => {
   const league = createLeague({
+    launched: true,
     name: 'Belt and braces', seasonId: season.seasonId, startGameweek: 11, createdBy: makeUser('owner').id,
   });
   const entry = joinLeague(league, makeUser('persistent').id, { force: true });
@@ -162,6 +165,7 @@ test('the database itself refuses to reuse a club inside a cycle', () => {
 
 test('a pick filed against the wrong gameweek is caught', () => {
   const league = createLeague({
+    launched: true,
     name: 'Wrong week', seasonId: season.seasonId, startGameweek: 12, createdBy: makeUser('owner').id,
   });
   const entry = joinLeague(league, makeUser('muddled').id, { force: true });
@@ -174,6 +178,7 @@ test('a pick filed against the wrong gameweek is caught', () => {
 
 test('a club with two fixtures in one gameweek stops the round being settled', () => {
   const league = createLeague({
+    launched: true,
     name: 'Fixture chaos', seasonId: season.seasonId, startGameweek: 14, createdBy: makeUser('owner').id,
   });
   const entry = joinLeague(league, makeUser('unlucky').id, { force: true });

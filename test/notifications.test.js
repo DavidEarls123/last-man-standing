@@ -43,6 +43,7 @@ test('deadline reminders follow the offsets the super admin sets', () => {
 
   const owner = makeUser('owner');
   const league = createLeague({
+    launched: true,
     name: 'Reminders', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
     openingPicks: 3,
   });
@@ -69,6 +70,7 @@ test('deadline reminders follow the offsets the super admin sets', () => {
 test('a league with no opening block just chases the round coming up', () => {
   const owner = makeUser('owner1b');
   const league = createLeague({
+    launched: true,
     name: 'Week by week', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
   });
   const player = makeUser('weekly');
@@ -83,6 +85,7 @@ test('a league with no opening block just chases the round coming up', () => {
 test('a reminder is dropped if the player picks before it is due', async () => {
   const owner = makeUser('owner2');
   const league = createLeague({
+    launched: true,
     name: 'Stale reminders', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
   });
   const player = makeUser('procrastinator');
@@ -109,6 +112,7 @@ test('results notices go to the channels each player has turned on', async () =>
   });
   const owner = makeUser('owner3');
   const league = createLeague({
+    launched: true,
     name: 'Both channels', seasonId: season.seasonId, startGameweek: 2, createdBy: owner.id,
   });
   const player = makeUser('bothchannels', { email: true, phone: true });
@@ -133,6 +137,7 @@ test('texts can be switched off for one league, or for the whole platform', asyn
   });
   const owner = makeUser('owner3b');
   const league = createLeague({
+    launched: true,
     name: 'Texts off', seasonId: season.seasonId, startGameweek: 4, createdBy: owner.id,
   });
   const player = makeUser('textme', { email: true, phone: true });
@@ -158,6 +163,7 @@ test('texts can be switched off for one league, or for the whole platform', asyn
 
   // Another league is unaffected.
   const other = createLeague({
+    launched: true,
     name: 'Texts on', seasonId: season.seasonId, startGameweek: 5, createdBy: owner.id,
   });
   const otherEntry = joinLeague(other, player.id);
@@ -183,6 +189,7 @@ test('switching notifications off queues nothing', () => {
   setSetting('notifications', { enabled: false, reminderOffsetsMinutes: [60], resultNotices: false });
   const owner = makeUser('owner4');
   const league = createLeague({
+    launched: true,
     name: 'Quiet', seasonId: season.seasonId, startGameweek: 3, createdBy: owner.id,
   });
   const player = makeUser('quiet');
@@ -200,6 +207,7 @@ test('missing a deadline hands over the next unused club alphabetically', () => 
     reset: true,
   });
   const league = createLeague({
+    launched: true,
     name: 'Auto pickers', seasonId: past.seasonId, startGameweek: 1, createdBy: owner.id,
   });
   assert.equal(league.no_pick_policy, 'auto_alphabetical', 'the default for a new league');

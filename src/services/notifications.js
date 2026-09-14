@@ -163,7 +163,7 @@ export function queueAutoPickNotices(league, items) {
   const settings = notificationSettings();
   if (!settings.resultNotices) return 0;
   let queued = 0;
-  for (const { entry, round, teamName, deadline, opening } of items) {
+  for (const { entry, round, teamName, deadline, opening, reselection } of items) {
     const user = userForEntry(entry.id);
     if (!user) continue;
     queued += enqueue({
@@ -176,7 +176,9 @@ export function queueAutoPickNotices(league, items) {
         '',
         opening
           ? `Entries closed before your opening picks were all in, so the league rules handed you the`
-          : `Round ${round} closed${deadline ? ` at ${deadline}` : ''} without a pick from you, so the league rules handed you the`,
+          : reselection
+            ? `Your round ${round} club had their game called off and the replacement window closed${deadline ? ` at ${deadline}` : ''} without a new pick from you, so the league rules handed you the`
+            : `Round ${round} closed${deadline ? ` at ${deadline}` : ''} without a pick from you, so the league rules handed you the`,
         `next club you had not used, alphabetically: ${teamName} for round ${round}.`,
         opening ? 'You can still change it any time before that gameweek kicks off.' : '',
         '',

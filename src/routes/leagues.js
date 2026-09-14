@@ -38,7 +38,11 @@ const summarise = (league, context, entry, role) => ({
   secondaryColor: league.secondary_color,
   logoUrl: league.logo_mime ? `/api/leagues/${league.id}/logo` : null,
   logoPreset: league.logo_preset,
-  joinCode: role === 'admin' || role === 'super_admin' ? league.join_code : undefined,
+  // The invite code is issued at launch, not while the league is a draft.
+  joinCode: (role === 'admin' || role === 'super_admin') && league.launched_at
+    ? league.join_code : undefined,
+  launched: Boolean(league.launched_at),
+  launchedAt: league.launched_at,
   status: league.status,
   startGameweek: league.start_gameweek,
   openingPicks: league.opening_picks,
@@ -343,9 +347,11 @@ leaguesRouter.get('/:leagueId/members', requireLeagueAdmin, wrap(async (req, res
      WHERE e.league_id = ? ORDER BY u.display_name COLLATE NOCASE`,
     req.league.id,
   );
+  const launched = Boolean(req.league.launched_at);
   res.json({
-    joinCode: req.league.join_code,
-    joinUrl: `${config.publicUrl}/join/${req.league.join_code}`,
+    launched,
+    joinCode: launched ? req.league.join_code : null,
+    joinUrl: launched ? `${config.publicUrl}/join/${req.league.join_code}` : null,
     members: members.map((member) => ({
       entryId: member.entry_id,
       userId: member.user_id,
@@ -553,14 +559,24 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
 
 /** Finish setup: the look and the rules stop being editable by the admin. */
 leaguesRouter.post('/:leagueId/lock', requireLeagueAdmin, wrap(async (req, res) => {
-  if (req.league.config_locked_at) {
-    return res.json({ ok: true, alreadyLocked: true, lockedAt: req.league.config_locked_at });
+  if (req.league.config_locked_at && req.league.launched_at) {
+    return res.json({
+      ok: true, alreadyLocked: true,
+      lockedAt: req.league.config_locked_at, launchedAt: req.league.launched_at,
+    });
   }
   const lockedAt = nowIso();
-  run('UPDATE leagues SET config_locked_at = ?, config_locked_by = ? WHERE id = ?',
-    lockedAt, req.user.id, req.league.id);
-  audit(req.user.id, 'league.config_locked', 'league', req.league.id, null);
-  res.json({ ok: true, lockedAt });
+  // Launching and locking are the same act: confirming the setup is what turns
+  // a draft into a league people can be invited to.
+  run(
+    `UPDATE leagues SET config_locked_at = ?, config_locked_by = ?,
+            launched_at = COALESCE(launched_at, ?), launched_by = COALESCE(launched_by, ?)
+     WHERE id = ?`,
+    lockedAt, req.user.id, lockedAt, req.user.id, req.league.id,
+  );
+  audit(req.user.id, 'league.launched', 'league', req.league.id, null);
+  const updated = get('SELECT * FROM leagues WHERE id = ?', req.league.id);
+  res.json({ ok: true, lockedAt, launchedAt: updated.launched_at, joinCode: updated.join_code });
 }));
 
 /** Reopen setup. Platform admin only — that is the point of the lock. */

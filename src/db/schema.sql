@@ -110,6 +110,9 @@ CREATE TABLE IF NOT EXISTS leagues (
   -- Setup locks once the admin says it is final; only the super admin reopens it.
   config_locked_at   TEXT,
   config_locked_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  -- Set when the admin confirms and launches. Until then nobody can join.
+  launched_at        TEXT,
+  launched_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at         TEXT NOT NULL,
   completed_at       TEXT
 );

@@ -68,6 +68,7 @@ test('a league runs from entry through elimination to a single winner', () => {
   const owner = makeUser('super');
   const admin = makeUser('leagueadmin');
   const league = createLeague({
+    launched: true,
     name: 'Test LMS', seasonId: season.seasonId, startGameweek: 1,
     adminUserId: admin.id, createdBy: owner.id,
   });
@@ -115,6 +116,7 @@ test('a league runs from entry through elimination to a single winner', () => {
 test('everyone going out in the same round shares the win', () => {
   const owner = makeUser('super2');
   const league = createLeague({
+    launched: true,
     name: 'Wipeout', seasonId: season.seasonId, startGameweek: 10, createdBy: owner.id,
   });
   const pool = teams();
@@ -136,6 +138,7 @@ test('everyone going out in the same round shares the win', () => {
 test('a league set to eliminate on a missed deadline does exactly that', () => {
   const owner = makeUser('super3');
   const league = createLeague({
+    launched: true,
     name: 'No shows', seasonId: season.seasonId, startGameweek: 15, createdBy: owner.id,
     noPickPolicy: 'eliminate',
   });
@@ -158,6 +161,7 @@ test('a league set to eliminate on a missed deadline does exactly that', () => {
 test('by default a missed deadline is settled with the next club alphabetically', () => {
   const owner = makeUser('super3b');
   const league = createLeague({
+    launched: true,
     name: 'Auto at settlement', seasonId: season.seasonId, startGameweek: 16, createdBy: owner.id,
   });
   const absent = joinLeague(league, makeUser('vanished').id, { force: true });
@@ -179,6 +183,7 @@ test('by default a missed deadline is settled with the next club alphabetically'
 test('a team cannot be reused inside a cycle, and unlocks in the next one', () => {
   const owner = makeUser('super4');
   const league = createLeague({
+    launched: true,
     // An opening block of two, so the reuse rule can be exercised through the
     // normal validated path rather than an override.
     name: 'Cycles', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
@@ -212,11 +217,13 @@ test('a team cannot be reused inside a cycle, and unlocks in the next one', () =
 test('entries close at the first kick off of the start gameweek', () => {
   const owner = makeUser('super7');
   const openLeague = createLeague({
+    launched: true,
     name: 'Still open', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
   });
   assert.ok(joinLeague(openLeague, makeUser('intime').id));
 
   const closedLeague = createLeague({
+    launched: true,
     name: 'Too late', seasonId: season.seasonId, startGameweek: 1, createdBy: owner.id,
   });
   assert.throws(() => joinLeague(closedLeague, makeUser('latecomer').id), /Entries closed/i);
@@ -227,6 +234,7 @@ test('entries close at the first kick off of the start gameweek', () => {
 test('overview reports entries, survivors and per-round casualties', () => {
   const owner = makeUser('super5');
   const league = createLeague({
+    launched: true,
     name: 'Numbers', seasonId: season.seasonId, startGameweek: 20, createdBy: owner.id,
   });
   const pool = teams();
@@ -254,6 +262,7 @@ test('overview reports entries, survivors and per-round casualties', () => {
 test('recompute replays a league after a result is corrected', () => {
   const owner = makeUser('super6');
   const league = createLeague({
+    launched: true,
     name: 'Corrections', seasonId: season.seasonId, startGameweek: 25, createdBy: owner.id,
   });
   const pool = teams();
@@ -275,6 +284,7 @@ test('recompute replays a league after a result is corrected', () => {
 test('one hard deadline a week: pick before it, or the next club is picked for you', () => {
   const owner = makeUser('super8');
   const league = createLeague({
+    launched: true,
     name: 'Weekly', seasonId: futureSeason.seasonId, startGameweek: 1, createdBy: owner.id,
     // No opening block: straight into the weekly rhythm.
   });
@@ -324,6 +334,7 @@ test('one hard deadline a week: pick before it, or the next club is picked for y
 test('the opening block is due up front, and completed for you if it is not', () => {
   const owner = makeUser('super9');
   const league = createLeague({
+    launched: true,
     name: 'Opening block', seasonId: futureSeason.seasonId, startGameweek: 10, createdBy: owner.id,
     openingPicks: 3,
   });

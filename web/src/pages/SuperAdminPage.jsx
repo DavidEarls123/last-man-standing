@@ -77,7 +77,7 @@ function OverviewSection() {
                 <tr key={league.id}>
                   <td>{league.name}</td>
                   <td className="muted">{league.admin?.name ?? <span className="dim">unassigned</span>}</td>
-                  <td className="mono">{league.joinCode}</td>
+                  <td className="mono">{league.launched ? league.joinCode : <span className="dim">draft</span>}</td>
                   <td>GW{league.startGameweek}</td>
                   <td>{league.active}/{league.entries}</td>
                   <td>
@@ -194,7 +194,10 @@ function LeagueRow({ league, onChange, setToast, setError }) {
         <div className="grow">
           <div className="strong">{league.name}</div>
           <div className="tiny muted">
-            GW{league.startGameweek} · code <span className="mono">{league.joinCode}</span> ·{' '}
+            GW{league.startGameweek} ·{' '}
+            {league.launched
+              ? <>code <span className="mono">{league.joinCode}</span></>
+              : <span className="badge badge-warn">draft — not launched</span>}{' · '}
             {league.admin ? `admin ${league.admin.name}` : 'no admin assigned'}
             {league.configLocked && ' · setup locked'}
             {!league.smsEnabled && ' · email only'}

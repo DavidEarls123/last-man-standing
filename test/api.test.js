@@ -65,6 +65,15 @@ test('super admin signs in and builds a league', async () => {
   });
   assert.equal(created.status, 201);
   assert.match(created.body.league.join_code, /^[A-Z0-9]{6}$/);
+
+  // It is a draft until somebody confirms and launches it: no invite is issued
+  // and the code does not work, so nobody joins a half-built league.
+  const drafts = await superAdmin('GET', '/api/leagues');
+  const draft = drafts.body.leagues.find((league) => league.name === 'Office LMS');
+  assert.equal(draft.launched, false);
+  assert.equal(draft.joinCode, undefined, 'no invite while it is a draft');
+  const tooEarly = await superAdmin('GET', `/api/leagues/${draft.id}/members`);
+  assert.equal(tooEarly.body.joinUrl, null);
 });
 
 test('players register, join with the code and complete the opening block', async () => {
@@ -74,6 +83,16 @@ test('players register, join with the code and complete the opening block', asyn
     displayName: 'Alice', email: 'alice@example.com', password: 'correct-horse-battery',
   });
   assert.equal(registered.status, 201);
+
+  // Joining is refused until the league is launched.
+  const early = await alice('POST', '/api/leagues/join', { code: league.join_code });
+  assert.equal(early.status, 409);
+  assert.match(early.body.error.message, /not been launched/i);
+
+  const launched = await superAdmin('POST', `/api/leagues/${league.id}/lock`);
+  assert.equal(launched.status, 200);
+  assert.ok(launched.body.launchedAt, 'launching issues the invite');
+  assert.equal(launched.body.joinCode, league.join_code);
 
   const preview = await alice('GET', `/api/leagues/preview/${league.join_code}`);
   assert.equal(preview.body.name, 'Office LMS');
@@ -156,6 +175,7 @@ test('a league with no opening block just starts week by week', async () => {
   });
   assert.equal(created.body.league.opening_picks, 0, 'no configuration needed');
   const leagueId = created.body.league.id;
+  await superAdmin('POST', `/api/leagues/${created.body.league.id}/lock`);
   assert.equal((await alice('POST', '/api/leagues/join', { code: created.body.league.join_code })).status, 201);
 
   const home = await alice('GET', `/api/leagues/${leagueId}/home`);
@@ -235,6 +255,7 @@ test('the same account can enter several leagues', async () => {
   const second = await superAdmin('POST', '/api/admin/leagues', {
     name: 'Pub LMS', seasonId: season.seasonId, startGameweek: 2,
   });
+  await superAdmin('POST', `/api/leagues/${second.body.league.id}/lock`);
   const joined = await alice('POST', '/api/leagues/join', { code: second.body.league.join_code });
   assert.equal(joined.status, 201);
 
@@ -246,12 +267,18 @@ test('the same account can enter several leagues', async () => {
 // A 1x1 transparent PNG.
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-test('the league admin brands the league and sizes the opening block', async () => {
+test('once a league is launched only the platform admin can restyle or resize it', async () => {
   const league = get('SELECT * FROM leagues WHERE name = ?', 'Office LMS');
   // Give Alice the league so she is acting as a plain league admin.
   await superAdmin('PATCH', `/api/admin/leagues/${league.id}`, { adminEmail: 'alice@example.com' });
 
-  const branded = await alice('PATCH', `/api/leagues/${league.id}`, {
+  // She confirmed and launched it, so the settings her entrants signed up to
+  // are fixed: she has to ask the platform admin now.
+  const refused = await alice('PATCH', `/api/leagues/${league.id}`, { tagline: 'Second thoughts' });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error.details?.code ?? refused.body.error.code, 'config_locked');
+
+  const branded = await superAdmin('PATCH', `/api/leagues/${league.id}`, {
     name: 'The Bell Inn Survivor Cup',
     tagline: 'Last one standing buys nothing',
     primaryColor: '#e4572e',
@@ -267,16 +294,16 @@ test('the league admin brands the league and sizes the opening block', async () 
   assert.equal(logo.status, 200);
   assert.equal(logo.headers.get('content-type'), 'image/png');
 
-  const badColour = await alice('PATCH', `/api/leagues/${league.id}`, { primaryColor: 'tangerine' });
+  const badColour = await superAdmin('PATCH', `/api/leagues/${league.id}`, { primaryColor: 'tangerine' });
   assert.equal(badColour.status, 400);
 
   // No block, or 2 to 10 — never 1.
   for (const bad of [1, 11, -3]) {
-    assert.equal((await alice('PATCH', `/api/leagues/${league.id}`, { openingPicks: bad })).status, 400);
+    assert.equal((await superAdmin('PATCH', `/api/leagues/${league.id}`, { openingPicks: bad })).status, 400);
   }
-  assert.equal((await alice('PATCH', `/api/leagues/${league.id}`, { openingPicks: 0 })).status, 200);
+  assert.equal((await superAdmin('PATCH', `/api/leagues/${league.id}`, { openingPicks: 0 })).status, 200);
 
-  const more = await alice('PATCH', `/api/leagues/${league.id}`, { openingPicks: 5 });
+  const more = await superAdmin('PATCH', `/api/leagues/${league.id}`, { openingPicks: 5 });
   assert.equal(more.status, 200);
   assert.equal(get('SELECT opening_picks FROM leagues WHERE id = ?', league.id).opening_picks, 5);
 
@@ -305,9 +332,19 @@ test('setup locks once the admin says it is final, and only the platform admin r
   assert.equal(before.status, 200);
   assert.equal(before.body.league.configLocked, false);
 
+  // Nothing to share while it is a draft.
+  assert.equal((await alice('GET', `/api/leagues/${leagueId}/members`)).body.joinCode, null);
+
   const locked = await alice('POST', `/api/leagues/${leagueId}/lock`);
   assert.equal(locked.status, 200);
   assert.ok(locked.body.lockedAt);
+  assert.ok(locked.body.launchedAt, 'confirming is what launches it');
+
+  // Launching is what hands them the invite.
+  const invite = await alice('GET', `/api/leagues/${leagueId}/members`);
+  assert.equal(invite.body.launched, true);
+  assert.match(invite.body.joinCode, /^[A-Z0-9]{6}$/);
+  assert.match(invite.body.joinUrl, /\/join\//);
 
   const after = await alice('PATCH', `/api/leagues/${leagueId}`, { tagline: 'Too late' });
   assert.equal(after.status, 409);
@@ -343,6 +380,8 @@ test('setup locks once the admin says it is final, and only the platform admin r
 test('the competition starting locks setup whatever the admin does', async () => {
   // Office LMS started long ago in this fixture's season.
   const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+  // Clear the launch lock first, so the only thing holding it shut is kick off.
+  await superAdmin('POST', `/api/leagues/${league.id}/unlock`, { reason: 'proving the kick-off lock' });
   run("UPDATE gameweeks SET deadline = datetime('now', '-1 day') WHERE season_id = ? AND number = 1", season.seasonId);
 
   const blocked = await alice('PATCH', `/api/leagues/${league.id}`, { tagline: 'Mid-season rebrand' });
@@ -391,16 +430,16 @@ test('a crest can be a ready-made icon instead of an upload', async () => {
     (group) => icons.body.icons.some((icon) => icon.group === group),
   ), 'sport, animals and general are all covered');
 
-  const chosen = await alice('PATCH', `/api/leagues/${league.id}`, { logoPreset: 'lion' });
+  const chosen = await superAdmin('PATCH', `/api/leagues/${league.id}`, { logoPreset: 'lion' });
   assert.equal(chosen.status, 200, JSON.stringify(chosen.body));
   assert.equal(chosen.body.league.logoPreset, 'lion');
   assert.equal(chosen.body.league.logoUrl, null, 'choosing an icon clears the uploaded image');
 
-  const madeUp = await alice('PATCH', `/api/leagues/${league.id}`, { logoPreset: 'unicorn-rampant' });
+  const madeUp = await superAdmin('PATCH', `/api/leagues/${league.id}`, { logoPreset: 'unicorn-rampant' });
   assert.equal(madeUp.status, 400, 'only crests from the list are accepted');
 
   // Uploading again replaces the icon.
-  const uploaded = await alice('PATCH', `/api/leagues/${league.id}`, { logo: PNG });
+  const uploaded = await superAdmin('PATCH', `/api/leagues/${league.id}`, { logo: PNG });
   assert.equal(uploaded.body.league.logoPreset, null);
   assert.ok(uploaded.body.league.logoUrl);
 
@@ -410,7 +449,7 @@ test('a crest can be a ready-made icon instead of an upload', async () => {
   assert.equal(served.headers.get('x-content-type-options'), 'nosniff');
 
   // SVG is not accepted: it can carry script and we serve from our own origin.
-  const svg = await alice('PATCH', `/api/leagues/${league.id}`, {
+  const svg = await superAdmin('PATCH', `/api/leagues/${league.id}`, {
     logo: 'data:image/svg+xml;base64,PHN2Zz48c2NyaXB0PmFsZXJ0KDEpPC9zY3JpcHQ+PC9zdmc+',
   });
   assert.equal(svg.status, 400);
@@ -470,6 +509,12 @@ test('creating a league is just a handover: the admin sets the rules, not the pl
   assert.equal(saved.body.league.startGameweek, 2);
   assert.equal(saved.body.league.drawPolicy, 'survive');
   assert.equal(saved.body.league.anonymousEntrants, true);
+
+  // Configured to their liking, the admin confirms and launches — which is what
+  // issues the invite and lets anyone in.
+  const live = await alice('POST', `/api/leagues/${league.id}/lock`);
+  assert.equal(live.status, 200);
+  assert.equal(live.body.joinCode, league.join_code);
 
   // And cannot move the start once picks exist.
   await alice('POST', '/api/leagues/join', { code: league.join_code });

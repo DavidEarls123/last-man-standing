@@ -31,6 +31,17 @@ ensureColumn('leagues', 'sms_enabled', 'INTEGER NOT NULL DEFAULT 1');
 ensureColumn('leagues', 'anonymous_entrants', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('leagues', 'config_locked_at', 'TEXT');
 ensureColumn('leagues', 'config_locked_by', 'INTEGER');
+ensureColumn('leagues', 'launched_at', 'TEXT');
+ensureColumn('leagues', 'launched_by', 'INTEGER');
+// Leagues that predate the launch step are already out in the world: anyone has
+// joined, or the admin locked the setup. Treat those as launched so they keep
+// working rather than locking their own entrants out.
+db.exec(`
+  UPDATE leagues SET launched_at = COALESCE(config_locked_at, created_at)
+   WHERE launched_at IS NULL
+     AND (config_locked_at IS NOT NULL
+          OR EXISTS (SELECT 1 FROM entries e WHERE e.league_id = leagues.id))
+`);
 
 /**
  * The opening-block column has been through two earlier names: `initial_picks`,

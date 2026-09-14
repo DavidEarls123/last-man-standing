@@ -377,8 +377,22 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
 
 /* -------------------------------------------------------------- fixtures -- */
 
+/*
+ * A single column on a phone. On a wider screen ten fixtures as one long list
+ * wastes half the card, so they run in two columns of five — the borders then
+ * separate rows rather than trailing off the bottom of each column.
+ */
+.fixture-grid { display: grid; }
 .fixture { display: grid; gap: 8px; padding: 13px 0; border-bottom: 1px solid var(--line); }
 .fixture:last-child { border-bottom: none; }
+
+@media (min-width: 760px) {
+  .fixture-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 26px; }
+  /* The last row is the final two, not just the final one. */
+  .fixture:nth-last-child(-n+2):nth-child(odd),
+  .fixture:nth-last-child(-n+2):nth-child(odd) + .fixture { border-bottom: none; }
+  .fixture:last-child:nth-child(odd) { border-bottom: none; }
+}
 .fixture-side { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
 .fixture-team { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .fixture-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }

@@ -49,11 +49,22 @@ export default function LeagueAdminPage() {
 
       <LeagueBranding league={league.league} onSaved={() => league.reload()} setToast={setToast} />
 
-      <SetupLock league={league.league} onChange={() => league.reload()} setToast={setToast} />
+      <SetupLock
+        league={league.league}
+        onChange={async () => { await league.reload(); reload(); }}
+        setToast={setToast}
+      />
 
       <VerificationCard leagueId={leagueId} setToast={setToast} />
 
       <Card title="Invite players">
+        {!data.launched ? (
+          <Alert tone="info">
+            Your invite link and join code arrive the moment you launch the league. Finish the setup
+            above first — nothing you share now would work anyway.
+          </Alert>
+        ) : (
+        <>
         <div className="code-box">{data.joinCode}</div>
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn-ghost btn-sm grow" type="button" onClick={() => {
@@ -68,9 +79,16 @@ export default function LeagueAdminPage() {
         <p className="tiny dim mono" style={{ marginTop: 8, marginBottom: 0, wordBreak: 'break-all' }}>
           {data.joinUrl}
         </p>
+        </>
+        )}
       </Card>
 
       <Card title="Add a player">
+        {!data.launched && (
+          <Alert tone="info">
+            Players can only be added once the league is launched.
+          </Alert>
+        )}
         {entriesClosed && (
           <Alert tone="warn">
             Entries closed at the first kick off, so new players can only be added by the platform admin.
@@ -100,7 +118,7 @@ export default function LeagueAdminPage() {
               <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
             </label>
           </div>
-          <button className="btn-primary" type="submit" disabled={entriesClosed}>Add player</button>
+          <button className="btn-primary" type="submit" disabled={entriesClosed || !data.launched}>Add player</button>
         </form>
         {tempPassword && (
           <Alert tone="ok">

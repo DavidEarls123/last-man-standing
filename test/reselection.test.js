@@ -37,6 +37,7 @@ function makeUser(name) {
 function setUp(name, startGameweek = 1, overrides = {}) {
   const owner = makeUser(`${name}-owner`);
   const league = createLeague({
+    launched: true,
     name, seasonId: season.seasonId, startGameweek, createdBy: owner.id, ...overrides,
   });
   const entry = joinLeague(league, makeUser(`${name}-player`).id, { force: true });
@@ -146,3 +147,44 @@ test('a league can still choose to eliminate on a void', () => {
 });
 
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+test('a reselection nobody acts on falls back to the alphabetical assignment', async () => {
+  const { applyAutoPicks } = await import('../src/scheduler.js');
+  const { league, entry } = setUp('Lapsed', 5);
+  const fixtures = all('SELECT * FROM fixtures WHERE gameweek_id = ? ORDER BY kickoff', gameweek(5).id);
+  const picked = fixtures[0].home_team_id;
+  submitPick({ league, entry, round: 1, teamId: picked, actorUserId: entry.user_id });
+
+  run("UPDATE fixtures SET status = 'postponed' WHERE id = ?", fixtures[0].id);
+  assert.equal(flagReselections(), 1);
+
+  const opened = get('SELECT * FROM picks WHERE entry_id = ? AND round_number = 1', entry.id);
+  assert.equal(opened.needs_reselect, 1);
+  // Still in the window: they are being asked, not judged.
+  assert.equal(applyAutoPicks(), 0, 'nothing is assigned while they can still pick');
+
+  // Let the replacement window run out without them picking again.
+  run("UPDATE picks SET reselect_deadline = ? WHERE id = ?", new Date(Date.now() - 60_000).toISOString(), opened.id);
+  assert.equal(applyAutoPicks(), 1);
+
+  const pick = get('SELECT * FROM picks WHERE entry_id = ? AND round_number = 1', entry.id);
+  assert.equal(pick.needs_reselect, 0);
+  assert.equal(pick.auto_assigned, 1);
+  assert.equal(pick.outcome, 'pending');
+  assert.notEqual(pick.team_id, picked, 'never the club whose game was called off');
+
+  // It is the first unused club alphabetically that actually has a game on.
+  const playing = new Set(fixtures.filter((f) => f.status !== 'postponed')
+    .flatMap((f) => [f.home_team_id, f.away_team_id]));
+  const expected = all('SELECT * FROM teams WHERE season_id = ? ORDER BY name', season.seasonId)
+    .find((team) => playing.has(team.id));
+  assert.equal(pick.team_id, expected.id);
+
+  const notice = get(
+    "SELECT * FROM notifications WHERE kind = 'auto_pick' AND league_id = ? ORDER BY id DESC", league.id,
+  );
+  assert.match(notice.body, /called off/i, 'the notice says why they were given a club');
+
+  // And it does not fire twice.
+  assert.equal(applyAutoPicks(), 0);
+});

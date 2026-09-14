@@ -1,4 +1,4 @@
-import { all, audit } from './db/index.js';
+import { all, audit, get } from './db/index.js';
 import { config } from './config.js';
 import { footballProvider } from './services/football/index.js';
 import { flagReselections, settleAllLeagues } from './services/settlement.js';
@@ -70,6 +70,62 @@ export function applyAutoPicks() {
       }
       if (assigned.length) queueAutoPickNotices(league, assigned);
     }
+
+    // A reselection that ran out of time is a missed deadline like any other.
+    // Their club's game was called off, they were asked to pick again, and the
+    // last replacement fixture has now kicked off — so hand them the next club
+    // they have not used, exactly as if they had never picked at all.
+    made += assignLapsedReselections(league, context);
+  }
+  return made;
+}
+
+function assignLapsedReselections(league, context) {
+  const now = Date.now();
+  let made = 0;
+
+  for (const roundInfo of context.rounds) {
+    if (roundInfo.settled) continue;
+    const lapsed = all(
+      `SELECT p.*, e.id AS entry_row_id FROM picks p
+       JOIN entries e ON e.id = p.entry_id
+       WHERE p.league_id = ? AND p.round_number = ? AND p.needs_reselect = 1
+         AND p.reselect_deadline IS NOT NULL AND e.status = 'active'`,
+      league.id, roundInfo.round,
+    ).filter((pick) => new Date(pick.reselect_deadline).getTime() <= now);
+    if (!lapsed.length) continue;
+
+    // Their own club is not an option: its game is the one that was called off.
+    const playable = new Set();
+    for (const fixture of roundInfo.fixtures) {
+      if (fixture.status === 'postponed' || fixture.status === 'abandoned') continue;
+      playable.add(fixture.home_team_id);
+      playable.add(fixture.away_team_id);
+    }
+
+    const assigned = [];
+    for (const pick of lapsed) {
+      const entry = get('SELECT * FROM entries WHERE id = ?', pick.entry_id);
+      const team = nextAlphabeticalTeam(
+        context.teams, usedPicks(entry.id), roundInfo.round, context.teamCount || 1,
+        (teamId) => playable.has(teamId),
+      );
+      // Nothing left to give them: the void stands, and the void policy decides.
+      if (!team) continue;
+      submitPick({
+        league, entry, round: roundInfo.round, teamId: team.id,
+        actorUserId: null, override: true, autoAssigned: true,
+      });
+      audit(null, 'pick.auto', 'entry', entry.id, {
+        leagueId: league.id, round: roundInfo.round, teamId: team.id, rule: 'alphabetical_after_reselect',
+      });
+      assigned.push({
+        entry, round: roundInfo.round, teamName: team.name, deadline: pick.reselect_deadline,
+        reselection: true,
+      });
+      made += 1;
+    }
+    if (assigned.length) queueAutoPickNotices(league, assigned);
   }
   return made;
 }

@@ -86,6 +86,7 @@ export default function LeagueListPage() {
                   </div>
                 </div>
                 <div className="row-tight">
+                  {!league.launched && <span className="badge badge-warn">Draft</span>}
                   {league.role === 'admin' && <span className="badge badge-admin">Admin</span>}
                   {league.role === 'super_admin' && <span className="badge badge-admin">Platform</span>}
                   {league.entry?.isWinner && <span className="badge badge-gold">Winner</span>}

@@ -38,6 +38,7 @@ function makeUser() {
 
 function newLeague(name, overrides = {}) {
   const league = createLeague({
+    launched: true,
     name, seasonId: season.seasonId, startGameweek: 1, createdBy: makeUser().id, ...overrides,
   });
   return { league, entry: joinLeague(league, makeUser().id) };
