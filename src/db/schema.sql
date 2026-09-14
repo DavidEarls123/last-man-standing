@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS leagues (
   max_entries        INTEGER,
   -- Texts cost money, so the super admin can switch them off league by league.
   sms_enabled        INTEGER NOT NULL DEFAULT 1,
+  -- Hide entrants' names from each other; the field is shown as a graph instead.
+  anonymous_entrants INTEGER NOT NULL DEFAULT 0,
   -- Branding chosen by the league admin.
   tagline            TEXT,
   primary_color      TEXT NOT NULL DEFAULT '#1f9d55',

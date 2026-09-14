@@ -28,6 +28,7 @@ ensureColumn('leagues', 'logo_data', 'BLOB');
 ensureColumn('leagues', 'logo_mime', 'TEXT');
 ensureColumn('leagues', 'logo_preset', 'TEXT');
 ensureColumn('leagues', 'sms_enabled', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('leagues', 'anonymous_entrants', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('leagues', 'config_locked_at', 'TEXT');
 ensureColumn('leagues', 'config_locked_by', 'INTEGER');
 

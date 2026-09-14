@@ -2,13 +2,14 @@ import { Link } from 'react-router-dom';
 import { useLeague } from '../league.jsx';
 import { Alert, Bar, Card, Countdown, Empty, Stat } from '../components/ui.jsx';
 import LeagueHeader from '../components/LeagueHeader.jsx';
+import FieldChart from '../components/FieldChart.jsx';
 import { ELIMINATION_LABEL, OUTCOME_LABEL, formatDateTime } from '../lib/format.js';
 
 const outcomeClass = (result) => (result === 'survived' ? 'win' : result === 'eliminated' ? 'lost' : '');
 
 export default function LeagueHomePage() {
   const league = useLeague();
-  const { overview, picks, standings, needsPick, nextRound, nextDeadline } = league;
+  const { overview, picks, standings, needsPick, nextRound, nextDeadline, anonymised } = league;
   const entry = league.league.entry;
   const isPlayer = Boolean(entry);
   const isOut = entry?.status === 'eliminated';
@@ -157,8 +158,21 @@ export default function LeagueHomePage() {
         </div>
       </Card>
 
-      <Card title={`Entrants (${standings.length})`}>
-        <div className="list">
+      <Card title={anonymised ? 'The field' : `Entrants (${standings.length})`}>
+        {anonymised ? (
+          <>
+            <p className="tiny dim" style={{ marginTop: 0 }}>
+              This league is anonymous, so entrants are not named. Here is how the field has
+              thinned out instead.
+            </p>
+            <FieldChart
+              rounds={overview.rounds}
+              totalEntries={overview.totalEntries}
+              me={standings.find((row) => row.isMe)}
+            />
+          </>
+        ) : (
+          <div className="list">
           {standings.map((row) => (
             <div key={row.entryId} className={`list-item${row.isMe ? ' me' : ''}`}>
               <div className="grow">
@@ -182,7 +196,8 @@ export default function LeagueHomePage() {
                   </span>}
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </Card>
       </div>
     </div>

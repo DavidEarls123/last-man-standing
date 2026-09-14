@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Alert, Card } from './ui.jsx';
+import InfoTip from './InfoTip.jsx';
 import { leagueIcons } from '../lib/icons.js';
 
 const MAX_DIMENSION = 256;
@@ -47,6 +48,11 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
     primaryColor: league.primaryColor,
     secondaryColor: league.secondaryColor,
     openingPicks: league.openingPicks,
+    startGameweek: league.startGameweek,
+    drawPolicy: league.drawPolicy,
+    voidPolicy: league.voidPolicy,
+    noPickPolicy: league.noPickPolicy,
+    anonymousEntrants: league.anonymousEntrants,
   });
   const [logo, setLogo] = useState(undefined); // undefined = unchanged, null = remove
   const [preset, setPreset] = useState(league.logoPreset ?? null);
@@ -85,6 +91,11 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         primaryColor: form.primaryColor,
         secondaryColor: form.secondaryColor,
         openingPicks: Number(form.openingPicks),
+        startGameweek: Number(form.startGameweek),
+        drawPolicy: form.drawPolicy,
+        voidPolicy: form.voidPolicy,
+        noPickPolicy: form.noPickPolicy,
+        anonymousEntrants: form.anonymousEntrants,
         ...(logo === undefined ? {} : { logo }),
         logoPreset: preset,
       });
@@ -127,11 +138,17 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         style={{ '--brand': form.primaryColor, '--brand-2': form.secondaryColor }}
       >
         <label className="field">
-          Title
+          <InfoTip label="Title">
+            The name of your competition. It heads every page your players see, and goes in
+            the emails and texts they get.
+          </InfoTip>
           <input value={form.name} onChange={update('name')} maxLength={80} required disabled={readOnly} />
         </label>
         <label className="field">
-          Tagline (optional)
+          <InfoTip label="Tagline (optional)">
+            One line under the title — the prize, the pub, the wind-up. Leave it blank if you
+            would rather not have one.
+          </InfoTip>
           <input
             value={form.tagline} onChange={update('tagline')} maxLength={120}
             placeholder="Last one standing drinks free" disabled={readOnly}
@@ -140,11 +157,17 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
 
         <div className="grid-2">
           <label className="field">
-            Main colour
+            <InfoTip label="Main colour">
+              Your league's main colour. Buttons, progress bars and highlights all take it, so
+              the league looks like yours rather than the default green.
+            </InfoTip>
             <input type="color" value={form.primaryColor} onChange={update('primaryColor')} disabled={readOnly} />
           </label>
           <label className="field">
-            Second colour
+            <InfoTip label="Second colour">
+              The partner colour, used for gradients and accents alongside the main one. Pick
+              something that sits well next to it.
+            </InfoTip>
             <input type="color" value={form.secondaryColor} onChange={update('secondaryColor')} disabled={readOnly} />
           </label>
         </div>
@@ -208,19 +231,84 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         </div>
 
         <label className="field">
-          Opening block
+          <InfoTip label="Start gameweek">
+            The Premier League gameweek your competition begins in. Entries close at the first
+            kick off of that week, and that is round 1. You can only move this before anybody
+            has picked.
+          </InfoTip>
+          <input
+            type="number" min="1" max="38" value={form.startGameweek}
+            onChange={update('startGameweek')} disabled={readOnly}
+          />
+        </label>
+
+        <label className="field">
+          <InfoTip label="Opening block">
+            Leave this alone for the ordinary weekly game. Choose a block and every entrant must
+            pick that many rounds before the first kick off, and cannot change them afterwards.
+            Either way, picking further ahead is always allowed and never required.
+          </InfoTip>
           <select value={form.openingPicks} onChange={update('openingPicks')} disabled={readOnly}>
             <option value={0}>None — start as normal</option>
             {OPENING_PICK_CHOICES.map((count) => (
               <option key={count} value={count}>{count} locked rounds up front</option>
             ))}
           </select>
-          <span className="tiny dim">
-            Leave this alone for the ordinary weekly game. Choose a block and every entrant must
-            pick those rounds before kick off, and cannot change them afterwards. Either way,
-            picking further ahead is always allowed and never required.
-          </span>
         </label>
+
+        <div className="stack">
+          <label className="field">
+            <InfoTip label="A draw">
+              What happens when the club somebody picked draws. The usual Last Man Standing rule
+              is that only a win keeps you in, so a draw knocks you out — but some leagues let a
+              draw pass.
+            </InfoTip>
+            <select value={form.drawPolicy} onChange={update('drawPolicy')} disabled={readOnly}>
+              <option value="eliminate">Knocks you out</option>
+              <option value="survive">Counts as surviving</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <InfoTip label="Postponed or no fixture">
+              What happens when a picked club's game is called off, or they have no game that
+              week. The fair default is to tell that player to pick again from whatever has not
+              kicked off yet, and give them their club back for a later round.
+            </InfoTip>
+            <select value={form.voidPolicy} onChange={update('voidPolicy')} disabled={readOnly}>
+              <option value="reselect">Ask them to pick again</option>
+              <option value="survive">Counts as surviving</option>
+              <option value="eliminate">Knocks you out</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <InfoTip label="No pick by the deadline">
+              What happens to somebody who forgets. By default they are handed the first club
+              they have not used yet in alphabetical order, so they stay in the game. The strict
+              alternative is that missing the deadline puts them out.
+            </InfoTip>
+            <select value={form.noPickPolicy} onChange={update('noPickPolicy')} disabled={readOnly}>
+              <option value="auto_alphabetical">Give them the next unused club (A–Z)</option>
+              <option value="eliminate">Knocks them out</option>
+            </select>
+          </label>
+
+          <div className="field">
+            <InfoTip label="Anonymous entrants">
+              On, players cannot see who else is playing or what anyone picked — the field is
+              shown as a graph of how many are still in instead. You and the platform admin can
+              still see everybody by name in here.
+            </InfoTip>
+            <label className="checkbox" style={{ marginTop: 4 }}>
+              <input
+                type="checkbox" checked={Boolean(form.anonymousEntrants)} disabled={readOnly}
+                onChange={(event) => setForm({ ...form, anonymousEntrants: event.target.checked })}
+              />
+              <span>Hide entrants' names from each other</span>
+            </label>
+          </div>
+        </div>
 
         <Alert tone="error">{error}</Alert>
         {!readOnly && (

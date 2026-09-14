@@ -100,10 +100,7 @@ function OverviewSection() {
 function LeaguesSection({ setToast, setError }) {
   const seasons = useAsync(() => api.get('/api/admin/seasons'));
   const overview = useAsync(() => api.get('/api/admin/overview'));
-  const [form, setForm] = useState({
-    name: '', startGameweek: 1, adminEmail: '', openingPicks: 0,
-    drawPolicy: 'eliminate', voidPolicy: 'reselect', noPickPolicy: 'auto_alphabetical', seasonId: '',
-  });
+  const [form, setForm] = useState({ name: '', adminEmail: '', seasonId: '' });
 
   useEffect(() => {
     if (!form.seasonId && seasons.data?.seasons?.length) {
@@ -119,14 +116,9 @@ function LeaguesSection({ setToast, setError }) {
       const { league } = await api.post('/api/admin/leagues', {
         name: form.name,
         seasonId: Number(form.seasonId),
-        startGameweek: Number(form.startGameweek),
-        adminEmail: form.adminEmail || undefined,
-        openingPicks: Number(form.openingPicks),
-        drawPolicy: form.drawPolicy,
-        voidPolicy: form.voidPolicy,
-        noPickPolicy: form.noPickPolicy,
+        adminEmail: form.adminEmail,
       });
-      setToast(`Created "${league.name}" — join code ${league.join_code}`);
+      setToast(`"${league.name}" handed to ${form.adminEmail} — code ${league.join_code}`);
       setForm({ ...form, name: '', adminEmail: '' });
       overview.reload();
     } catch (createError) {
@@ -136,69 +128,38 @@ function LeaguesSection({ setToast, setError }) {
 
   return (
     <div className="stack">
-      <Card title="Create a league">
+      <Card title="Hand a league to an admin">
+        <p className="tiny dim" style={{ marginTop: 0 }}>
+          You name the league and choose who runs it. Everything else — the look, the crest,
+          the start gameweek, the rules, anonymity — is theirs to set in the league's own Manage
+          tab, and locks once they are happy. You can still edit any of it later by opening the
+          league yourself.
+        </p>
         <form className="stack" onSubmit={create}>
           <label className="field">
             League name
             <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
           </label>
-          <div className="grid-2">
+          <label className="field">
+            League admin (email of an existing account)
+            <input
+              type="email" value={form.adminEmail} required placeholder="whoever is running it"
+              onChange={(event) => setForm({ ...form, adminEmail: event.target.value })}
+            />
+          </label>
+          {seasons.data?.seasons?.length > 1 && (
             <label className="field">
               Season
               <select value={form.seasonId} onChange={(event) => setForm({ ...form, seasonId: event.target.value })}>
-                {seasons.data?.seasons.map((season) => (
+                {seasons.data.seasons.map((season) => (
                   <option key={season.id} value={season.id}>
                     {season.name} ({season.gameweeks} GWs)
                   </option>
                 ))}
               </select>
             </label>
-            <label className="field">
-              Start gameweek
-              <input type="number" min="1" max="38" value={form.startGameweek}
-                onChange={(event) => setForm({ ...form, startGameweek: event.target.value })} />
-            </label>
-          </div>
-          <label className="field">
-            League admin (email of an existing account)
-            <input type="email" value={form.adminEmail} placeholder="leave blank to assign later"
-              onChange={(event) => setForm({ ...form, adminEmail: event.target.value })} />
-          </label>
-          <div className="grid-2">
-            <label className="field">
-              Opening block
-              <select value={form.openingPicks}
-                onChange={(event) => setForm({ ...form, openingPicks: event.target.value })}>
-                <option value={0}>None</option>
-                {Array.from({ length: 9 }, (_, index) => index + 2).map((count) => (
-                  <option key={count} value={count}>{count} locked rounds</option>
-                ))}
-              </select>
-            </label>
-            <label className="field">
-              A draw
-              <select value={form.drawPolicy} onChange={(event) => setForm({ ...form, drawPolicy: event.target.value })}>
-                <option value="eliminate">Knocks you out</option>
-                <option value="survive">Counts as surviving</option>
-              </select>
-            </label>
-            <label className="field">
-              Postponed / no fixture
-              <select value={form.voidPolicy} onChange={(event) => setForm({ ...form, voidPolicy: event.target.value })}>
-                <option value="reselect">Ask them to pick again</option>
-                <option value="survive">Counts as surviving</option>
-                <option value="eliminate">Knocks you out</option>
-              </select>
-            </label>
-            <label className="field">
-              No pick by the deadline
-              <select value={form.noPickPolicy} onChange={(event) => setForm({ ...form, noPickPolicy: event.target.value })}>
-                <option value="auto_alphabetical">Give them the next unused club (A–Z)</option>
-                <option value="eliminate">Knocks you out</option>
-              </select>
-            </label>
-          </div>
-          <button className="btn-primary" type="submit">Create league</button>
+          )}
+          <button className="btn-primary" type="submit">Create and hand over</button>
         </form>
       </Card>
 
@@ -261,6 +222,7 @@ function LeagueRow({ league, onChange, setToast, setError }) {
           await api.post(`/api/admin/leagues/${league.id}/recompute`);
           setToast('League recomputed from the fixtures');
         })}>Recompute</button>
+        <Link className="btn-sm btn-ghost" to={`/leagues/${league.id}/admin`}>Edit setup</Link>
         <button className="btn-sm btn-danger" type="button" onClick={act(async () => {
           if (!window.confirm(`Archive "${league.name}"?`)) return;
           await api.del(`/api/admin/leagues/${league.id}`);
@@ -641,60 +603,96 @@ function describeOffset(minutes) {
   return `${minutes}m`;
 }
 
+const KIND_LABEL = {
+  deadline_reminder: 'Deadline reminder',
+  final_call: 'Final call',
+  survived: 'Through to the next round',
+  eliminated: 'Knocked out',
+  reselect: 'Asked to pick again',
+  announcement: 'Announcement from the league admin',
+  welcome: 'Welcome',
+};
+
 /**
- * Every message the app has produced, and what it said. With no email service
- * configured nothing is actually sent, so this is where you read them while
- * you are testing.
+ * The outbox, grouped. One deadline reminder that went to sixteen people is one
+ * line here, not sixteen — otherwise a single round buries everything else.
+ * Open a batch to see who it went to and read any one of the messages.
  */
 function OutboxCard() {
   const { data, loading, reload } = useAsync(() => api.get('/api/admin/notifications'));
-  const [open, setOpen] = useState(null);
+  const [openBatch, setOpenBatch] = useState(null);
+  const [openMessage, setOpenMessage] = useState(null);
   if (loading) return <Spinner />;
+
+  const batches = data.batches ?? [];
 
   return (
     <Card title="Recent messages" action={
       <button className="btn-ghost btn-sm" type="button" onClick={reload}>Refresh</button>
     }>
-      {data.notifications.length === 0 && <Empty>Nothing sent yet.</Empty>}
-      <p className="tiny dim" style={{ marginTop: 0 }}>
-        Tap a message to read it. With no email or SMS service set up these are written here
-        and printed to the server log rather than delivered — which is all you need for testing.
-      </p>
-      <div className="list" style={{ maxHeight: 460, overflowY: 'auto' }}>
-        {data.notifications.slice(0, 40).map((notification) => {
-          const expanded = open === notification.id;
+      {batches.length === 0 && <Empty>Nothing sent yet.</Empty>}
+      {batches.length > 0 && (
+        <p className="tiny dim" style={{ marginTop: 0 }}>
+          Grouped by what was sent and when. Open one to see the recipients and read a message.
+          With no email or SMS service set up these are written here and printed to the server
+          log rather than delivered — which is all you need for testing.
+        </p>
+      )}
+      <div className="list" style={{ maxHeight: 520, overflowY: 'auto' }}>
+        {batches.map((batch) => {
+          const expanded = openBatch === batch.key;
+          const people = batch.counts.total;
           return (
-            <div key={notification.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+            <div key={batch.key} className="list-item" style={{ alignItems: 'flex-start' }}>
               <button
                 type="button"
-                className="btn-ghost btn-sm"
+                className="batch-head"
                 aria-expanded={expanded}
-                style={{ border: 'none', padding: 0, background: 'none', display: 'block', textAlign: 'left', flex: '1 1 100%' }}
-                onClick={() => setOpen(expanded ? null : notification.id)}
+                onClick={() => { setOpenBatch(expanded ? null : batch.key); setOpenMessage(null); }}
               >
                 <span className="row-tight" style={{ flexWrap: 'wrap' }}>
                   <span className={`badge ${
-                    notification.status === 'sent' ? 'badge-in'
-                      : notification.status === 'failed' ? 'badge-out' : 'badge-pending'
-                  }`}>{notification.status}</span>
-                  <span className="badge badge-pending">{notification.channel}</span>
-                  <span className="small strong">{notification.display_name}</span>
+                    batch.counts.failed ? 'badge-out' : batch.counts.sent === people ? 'badge-in' : 'badge-pending'
+                  }`}>
+                    {batch.counts.failed
+                      ? `${batch.counts.failed} failed`
+                      : batch.counts.sent === people ? 'sent' : 'queued'}
+                  </span>
+                  <span className="small strong">
+                    {people} {people === 1 ? 'player' : 'players'} notified
+                  </span>
                 </span>
-                <span className="small" style={{ display: 'block', marginTop: 4 }}>{notification.subject}</span>
-                <span className="tiny dim">{formatShort(notification.scheduled_for)} · {notification.kind}</span>
+                <span className="small" style={{ display: 'block', marginTop: 4 }}>
+                  {KIND_LABEL[batch.kind] ?? batch.kind}
+                  {batch.round != null && ` · round ${batch.round}`}
+                  {batch.leagueName && ` · ${batch.leagueName}`}
+                </span>
+                <span className="tiny dim">
+                  {formatShort(batch.scheduledFor)}
+                  {batch.counts.email > 0 && ` · ${batch.counts.email} email`}
+                  {batch.counts.sms > 0 && ` · ${batch.counts.sms} text`}
+                </span>
               </button>
+
               {expanded && (
-                <pre style={{
-                  flex: '1 1 100%',
-                  margin: '8px 0 0',
-                  padding: 12,
-                  background: 'var(--sunken)',
-                  borderRadius: 'var(--radius-xs)',
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'anywhere',
-                  font: 'inherit',
-                  fontSize: '0.85rem',
-                }}>{notification.body}</pre>
+                <div className="stack" style={{ flex: '1 1 100%', gap: 6, marginTop: 8 }}>
+                  {batch.recipients.map((recipient) => (
+                    <div key={recipient.id}>
+                      <button
+                        type="button"
+                        className="batch-recipient"
+                        aria-expanded={openMessage === recipient.id}
+                        onClick={() => setOpenMessage(openMessage === recipient.id ? null : recipient.id)}
+                      >
+                        <span className="grow">{recipient.name}</span>
+                        <span className="tiny dim">{recipient.channel} · {recipient.status}</span>
+                      </button>
+                      {openMessage === recipient.id && (
+                        <pre className="message-body">{recipient.subject}\n\n{recipient.body}</pre>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           );

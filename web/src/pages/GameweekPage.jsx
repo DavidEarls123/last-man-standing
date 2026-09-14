@@ -33,6 +33,34 @@ function outcomeBadge(team) {
   return { className: 'loss', label: `Lost${score}` };
 }
 
+/** An anonymous league's version of "who picked what": the numbers, no names. */
+function RoundTally({ picks }) {
+  const through = picks.filter((pick) => pick.result === 'survived').length;
+  const out = picks.filter((pick) => pick.result === 'eliminated').length;
+  const pending = picks.length - through - out;
+  const pct = (count) => (picks.length ? (count / picks.length) * 100 : 0);
+
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      <div className="tally-bar" role="img"
+        aria-label={`${through} through, ${out} out${pending ? `, ${pending} still to play` : ''}`}>
+        {through > 0 && <span className="tally-seg through" style={{ width: `${pct(through)}%` }} />}
+        {out > 0 && <span className="tally-seg out" style={{ width: `${pct(out)}%` }} />}
+        {pending > 0 && <span className="tally-seg pending" style={{ width: `${pct(pending)}%` }} />}
+      </div>
+      <div className="fieldchart-legend tiny">
+        <span><i className="key-dot chart-in" />{through} through</span>
+        <span><i className="key-dot chart-out" />{out} out</span>
+        {pending > 0 && <span><i className="key-dot tone-future" />{pending} still to play</span>}
+      </div>
+      <p className="tiny dim" style={{ margin: 0 }}>
+        This league is anonymous, so picks are counted rather than named. The clubs themselves
+        are in the list above.
+      </p>
+    </div>
+  );
+}
+
 export default function GameweekPage() {
   const league = useLeague();
   const current = league.league.focusRound ?? 1;
@@ -123,7 +151,6 @@ export default function GameweekPage() {
       <Alert tone="error">{error}</Alert>
       {!live && !error && <Spinner />}
 
-      <div className="columns">
       {popularity && (
         <Card title={`Most picked · ${popularity.totalPicks} pick${popularity.totalPicks === 1 ? '' : 's'}`}>
           {popularity.teams.length === 0 && <Empty>Nobody has picked for this round yet.</Empty>}
@@ -181,25 +208,28 @@ export default function GameweekPage() {
           </p>
         </Card>
       )}
-      </div>
 
       {others && (
-        <Card title="Who picked what">
+        <Card title={others.anonymised ? 'How the round went' : 'Who picked what'}>
           {!others.revealed && <Empty>Picks stay hidden until the round locks.</Empty>}
           {others.revealed && others.picks.length === 0 && <Empty>No picks were made for this round.</Empty>}
-          <div className="list">
-            {others.revealed && others.picks.map((pick) => (
-              <div key={pick.entryId} className="list-item">
-                <span className="grow">{pick.name}</span>
-                <span className="muted small">{pick.team}</span>
-                <span className={`badge ${
-                  pick.result === 'survived' ? 'badge-in' : pick.result === 'eliminated' ? 'badge-out' : 'badge-pending'
-                }`}>
-                  {pick.result === 'pending' ? '—' : pick.result === 'survived' ? 'Through' : 'Out'}
-                </span>
-              </div>
-            ))}
-          </div>
+          {others.revealed && others.anonymised ? (
+            <RoundTally picks={others.picks} />
+          ) : (
+            <div className="list">
+              {others.revealed && others.picks.map((pick) => (
+                <div key={pick.entryId} className="list-item">
+                  <span className="grow">{pick.name}</span>
+                  <span className="muted small">{pick.team}</span>
+                  <span className={`badge ${
+                    pick.result === 'survived' ? 'badge-in' : pick.result === 'eliminated' ? 'badge-out' : 'badge-pending'
+                  }`}>
+                    {pick.result === 'pending' ? '—' : pick.result === 'survived' ? 'Through' : 'Out'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
     </div>

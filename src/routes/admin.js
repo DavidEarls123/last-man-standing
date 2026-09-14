@@ -138,7 +138,9 @@ adminRouter.patch('/users/:userId', wrap(async (req, res) => {
 const leagueSchema = z.object({
   name: z.string().trim().min(2).max(80),
   seasonId: z.number().int().optional(),
-  startGameweek: z.number().int().min(1).max(38),
+  // Optional on create: the platform admin hands the league to someone, and
+  // that admin sets the start gameweek and the rules themselves.
+  startGameweek: z.number().int().min(1).max(38).optional(),
   adminUserId: z.number().int().nullable().optional(),
   adminEmail: emailSchema.optional(),
   openingPicks: z.number().int()
@@ -166,10 +168,21 @@ adminRouter.post('/leagues', wrap(async (req, res) => {
     adminUserId = existing.id;
   }
 
+  // Start at the next gameweek that has not kicked off; the league admin moves
+  // it wherever they want before anyone picks.
+  const startGameweek = body.startGameweek ?? (
+    get(
+      'SELECT number FROM gameweeks WHERE season_id = ? AND deadline > ? ORDER BY number LIMIT 1',
+      season.id, nowIso(),
+    )?.number
+    ?? get('SELECT MIN(number) AS number FROM gameweeks WHERE season_id = ?', season.id)?.number
+    ?? 1
+  );
+
   const league = createLeague({
     name: body.name,
     seasonId: season.id,
-    startGameweek: body.startGameweek,
+    startGameweek,
     adminUserId,
     createdBy: req.user.id,
     openingPicks: body.openingPicks,
@@ -443,13 +456,57 @@ adminRouter.post('/notifications/run', wrap(async (req, res) => {
   res.json({ queued, sent });
 }));
 
+/**
+ * The outbox, grouped. One deadline reminder to sixteen people is one line of
+ * news, not sixteen; the individual messages are still there behind it.
+ */
 adminRouter.get('/notifications', wrap(async (req, res) => {
-  res.json({
-    notifications: all(
-      `SELECT n.*, u.display_name FROM notifications n JOIN users u ON u.id = n.user_id
-       ORDER BY n.created_at DESC LIMIT 100`,
-    ),
-  });
+  const rows = all(
+    `SELECT n.*, u.display_name, l.name AS league_name
+     FROM notifications n
+     JOIN users u ON u.id = n.user_id
+     LEFT JOIN leagues l ON l.id = n.league_id
+     ORDER BY n.created_at DESC LIMIT 500`,
+  );
+
+  // A batch is one kind of message, about one league and round, sent in one go.
+  const roundOf = (row) => {
+    if (!row.meta) return null;
+    try { return JSON.parse(row.meta).round ?? null; } catch { return null; }
+  };
+
+  const batches = new Map();
+  for (const row of rows) {
+    const round = roundOf(row);
+    const key = [row.kind, row.league_id ?? '-', round ?? '-', row.scheduled_for].join('|');
+    if (!batches.has(key)) {
+      batches.set(key, {
+        key,
+        kind: row.kind,
+        leagueId: row.league_id ?? null,
+        leagueName: row.league_name ?? null,
+        round,
+        scheduledFor: row.scheduled_for,
+        subject: row.subject,
+        counts: { total: 0, queued: 0, sent: 0, failed: 0, email: 0, sms: 0 },
+        recipients: [],
+      });
+    }
+    const batch = batches.get(key);
+    batch.counts.total += 1;
+    batch.counts[row.status] = (batch.counts[row.status] ?? 0) + 1;
+    batch.counts[row.channel] = (batch.counts[row.channel] ?? 0) + 1;
+    batch.recipients.push({
+      id: row.id,
+      name: row.display_name,
+      channel: row.channel,
+      status: row.status,
+      subject: row.subject,
+      body: row.body,
+    });
+  }
+
+  res.json({ batches: [...batches.values()].slice(0, 60) });
 }));
 
 // ------------------------------------------------------- recovery + audit ---

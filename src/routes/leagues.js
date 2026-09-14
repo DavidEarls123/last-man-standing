@@ -26,6 +26,10 @@ import { queueDirect } from '../services/notifications.js';
 
 export const leaguesRouter = express.Router();
 
+/** Anonymity hides entrants from each other, never from the people running it. */
+const namesHidden = (league, role) =>
+  Boolean(league.anonymous_entrants) && role !== 'admin' && role !== 'super_admin';
+
 const summarise = (league, context, entry, role) => ({
   id: league.id,
   name: league.name,
@@ -45,6 +49,7 @@ const summarise = (league, context, entry, role) => ({
   entryClosed: context.entryClosed,
   configLocked: context.configLocked,
   smsEnabled: Boolean(league.sms_enabled),
+  anonymousEntrants: Boolean(league.anonymous_entrants),
   configLockedAt: context.configLockedAt,
   configLockReason: context.configLockReason,
   nextOpenRound: context.nextOpenRound,
@@ -159,6 +164,7 @@ leaguesRouter.get('/:leagueId', requireLeagueMember, wrap(async (req, res) => {
 leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) => {
   const context = leagueContext(req.league);
   const picks = req.entry ? entryPicks(req.entry.id) : [];
+  const hideNames = namesHidden(req.league, req.leagueRole);
   const nextRound = context.nextOpenRound;
   const needsPick = Boolean(
     req.entry && req.entry.status === 'active' && nextRound
@@ -217,9 +223,12 @@ leaguesRouter.get('/:leagueId/home', requireLeagueMember, wrap(async (req, res) 
     openRounds,
     owedOpeningRounds,
     unpickedOpenRounds: openRounds.filter((round) => !picks.some((pick) => pick.round_number === round)),
+    // With anonymity on, only the admins see who is who. Everyone else gets the
+    // shape of the field as a graph, and their own row.
+    anonymised: hideNames,
     standings: leagueStandings(req.league).map((row) => ({
       entryId: row.entry_id,
-      name: row.display_name,
+      name: hideNames && row.user_id !== req.user.id ? null : row.display_name,
       status: row.status,
       eliminatedRound: row.eliminated_round,
       eliminatedReason: row.eliminated_reason,
@@ -278,12 +287,17 @@ leaguesRouter.get('/:leagueId/rounds/:round/picks', requireLeagueMember, wrap(as
      ORDER BY u.display_name COLLATE NOCASE`,
     req.league.id, round,
   );
+  const hideNames = namesHidden(req.league, req.leagueRole);
   res.json({
     round,
     revealed: true,
+    anonymised: hideNames,
     picks: picks.map((pick) => ({
-      entryId: pick.entry_id, name: pick.display_name, team: pick.team,
-      outcome: pick.outcome, result: pick.result,
+      entryId: pick.entry_id,
+      name: hideNames ? null : pick.display_name,
+      team: pick.team,
+      outcome: pick.outcome,
+      result: pick.result,
     })),
   });
 }));
@@ -441,6 +455,12 @@ const brandingSchema = z.object({
   // Or one of the ready-made crests, by key.
   logoPreset: z.string().trim().max(40).nullable().optional()
     .refine((value) => value == null || isLeagueIcon(value), 'Unknown crest'),
+  // The rules themselves belong to the league admin, not the platform admin.
+  startGameweek: z.number().int().min(1).max(38).optional(),
+  drawPolicy: z.enum(['eliminate', 'survive']).optional(),
+  voidPolicy: z.enum(['reselect', 'eliminate', 'survive']).optional(),
+  noPickPolicy: z.enum(['auto_alphabetical', 'eliminate']).optional(),
+  anonymousEntrants: z.boolean().optional(),
 });
 
 // No SVG: it can carry script, and we serve crests from our own origin.
@@ -486,9 +506,21 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
   }
   if (body.logoPreset) logo = { buffer: null, mime: null };
 
+  // Moving the start gameweek re-dates every round, so it is only safe while
+  // the league has not been played.
+  if (body.startGameweek !== undefined && body.startGameweek !== league.start_gameweek) {
+    if (get('SELECT 1 FROM picks WHERE league_id = ?', league.id)) {
+      throw conflict('Picks have already been made — moving the start gameweek would invalidate them');
+    }
+    if (!get('SELECT 1 FROM gameweeks WHERE season_id = ? AND number = ?', league.season_id, body.startGameweek)) {
+      throw notFound(`Gameweek ${body.startGameweek} does not exist in this season`);
+    }
+  }
+
   run(
     `UPDATE leagues SET name = ?, tagline = ?, primary_color = ?, secondary_color = ?, opening_picks = ?,
-            logo_data = ?, logo_mime = ?, logo_preset = ?
+            logo_data = ?, logo_mime = ?, logo_preset = ?, start_gameweek = ?,
+            draw_policy = ?, void_policy = ?, no_pick_policy = ?, anonymous_entrants = ?
      WHERE id = ?`,
     body.name ?? league.name,
     body.tagline === undefined ? league.tagline : body.tagline,
@@ -498,11 +530,18 @@ leaguesRouter.patch('/:leagueId', requireLeagueAdmin, wrap(async (req, res) => {
     logo.buffer === undefined ? league.logo_data : logo.buffer,
     logo.buffer === undefined ? league.logo_mime : logo.mime,
     preset,
+    body.startGameweek ?? league.start_gameweek,
+    body.drawPolicy ?? league.draw_policy,
+    body.voidPolicy ?? league.void_policy,
+    body.noPickPolicy ?? league.no_pick_policy,
+    body.anonymousEntrants === undefined ? league.anonymous_entrants : Number(body.anonymousEntrants),
     league.id,
   );
   audit(req.user.id, 'league.branding_updated', 'league', league.id, {
     name: body.name, tagline: body.tagline, primaryColor: body.primaryColor,
     secondaryColor: body.secondaryColor, openingPicks: body.openingPicks,
+    startGameweek: body.startGameweek, drawPolicy: body.drawPolicy, voidPolicy: body.voidPolicy,
+    noPickPolicy: body.noPickPolicy, anonymousEntrants: body.anonymousEntrants,
     logo: body.logo === undefined ? 'unchanged' : body.logo === null ? 'cleared' : 'updated',
     logoPreset: preset,
     // Worth recording separately: an edit that went through a closed lock.

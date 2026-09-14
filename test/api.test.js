@@ -451,3 +451,51 @@ test.after(() => {
   server.close();
   fs.rmSync(tmp, { recursive: true, force: true });
 });
+
+test('creating a league is just a handover: the admin sets the rules, not the platform', async () => {
+  // No start gameweek, no policies — only a name and who is going to run it.
+  const created = await superAdmin('POST', '/api/admin/leagues', {
+    name: 'Handover FC', seasonId: season.seasonId, adminEmail: 'alice@example.com',
+  });
+  assert.equal(created.status, 201);
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'Handover FC');
+  assert.equal(league.opening_picks, 0, 'defaults, for the league admin to change');
+  assert.ok(league.start_gameweek >= 1, 'a sensible start gameweek is chosen for them');
+
+  // The league admin now owns the rules, including where the competition starts.
+  const saved = await alice('PATCH', `/api/leagues/${league.id}`, {
+    startGameweek: 2, drawPolicy: 'survive', noPickPolicy: 'eliminate', anonymousEntrants: true,
+  });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.league.startGameweek, 2);
+  assert.equal(saved.body.league.drawPolicy, 'survive');
+  assert.equal(saved.body.league.anonymousEntrants, true);
+
+  // And cannot move the start once picks exist.
+  await alice('POST', '/api/leagues/join', { code: league.join_code });
+  await bob('POST', '/api/leagues/join', { code: league.join_code });
+  const round = await bob('GET', `/api/leagues/${league.id}/rounds/1/teams`);
+  await bob('POST', `/api/leagues/${league.id}/picks`, {
+    round: 1, teamId: round.body.teams.find((team) => team.available).teamId,
+  });
+  const moved = await alice('PATCH', `/api/leagues/${league.id}`, { startGameweek: 3 });
+  assert.equal(moved.status, 409);
+});
+
+test('an anonymous league hides entrants from each other but not from its admin', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'Handover FC');
+  assert.equal(league.anonymous_entrants, 1);
+
+  const asPlayer = await bob('GET', `/api/leagues/${league.id}/home`);
+  assert.equal(asPlayer.body.anonymised, true);
+  const others = asPlayer.body.standings.filter((row) => !row.isMe);
+  assert.ok(others.length > 0, 'there is somebody else to hide');
+  assert.ok(others.every((row) => row.name === null), 'other entrants are not named');
+  assert.ok(asPlayer.body.standings.some((row) => row.isMe && row.name), 'you still see yourself');
+  // The graph is drawn from these, so the counts must survive anonymising.
+  assert.equal(typeof asPlayer.body.overview.totalEntries, 'number');
+
+  const asAdmin = await alice('GET', `/api/leagues/${league.id}/home`);
+  assert.equal(asAdmin.body.anonymised, false);
+  assert.ok(asAdmin.body.standings.every((row) => row.name), 'the admin still sees who is who');
+});
