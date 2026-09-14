@@ -23,14 +23,20 @@ export function notificationSettings() {
   };
 }
 
-function channelsFor(user, settings) {
+/**
+ * Which channels a message may go out on. Three switches have to agree: the
+ * platform setting, the league's own (texts cost money, so a league can be
+ * email-only), and the player's own preference.
+ */
+function channelsFor(user, settings, league = null) {
+  const smsAllowed = settings.channels.sms && (league ? league.sms_enabled !== 0 : true);
   const channels = [];
   if (settings.channels.email && user.notify_email && user.email) channels.push('email');
-  if (settings.channels.sms && user.notify_sms && user.phone) channels.push('sms');
+  if (smsAllowed && user.notify_sms && user.phone) channels.push('sms');
   // Always fall back to whatever contact detail we hold, so nobody misses a deadline.
   if (channels.length === 0) {
     if (user.email && settings.channels.email) channels.push('email');
-    else if (user.phone && settings.channels.sms) channels.push('sms');
+    else if (user.phone && smsAllowed) channels.push('sms');
   }
   return channels;
 }
@@ -38,7 +44,7 @@ function channelsFor(user, settings) {
 function enqueue({ user, league, kind, dedupeKey, subject, body, scheduledFor, settings, meta = null, force = false }) {
   if (!settings.enabled && !force) return 0;
   let queued = 0;
-  for (const channel of channelsFor(user, settings)) {
+  for (const channel of channelsFor(user, settings, league)) {
     const result = run(
       `INSERT OR IGNORE INTO notifications
          (user_id, league_id, kind, channel, dedupe_key, meta, subject, body, scheduled_for, status, created_at)

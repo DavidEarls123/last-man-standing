@@ -96,6 +96,8 @@ CREATE TABLE IF NOT EXISTS leagues (
   void_policy        TEXT NOT NULL DEFAULT 'reselect',         -- reselect | eliminate | survive
   no_pick_policy     TEXT NOT NULL DEFAULT 'auto_alphabetical',-- auto_alphabetical | eliminate
   max_entries        INTEGER,
+  -- Texts cost money, so the super admin can switch them off league by league.
+  sms_enabled        INTEGER NOT NULL DEFAULT 1,
   -- Branding chosen by the league admin.
   tagline            TEXT,
   primary_color      TEXT NOT NULL DEFAULT '#1f9d55',

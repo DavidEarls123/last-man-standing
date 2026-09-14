@@ -236,6 +236,7 @@ function LeagueRow({ league, onChange, setToast, setError }) {
             GW{league.startGameweek} · code <span className="mono">{league.joinCode}</span> ·{' '}
             {league.admin ? `admin ${league.admin.name}` : 'no admin assigned'}
             {league.configLocked && ' · setup locked'}
+            {!league.smsEnabled && ' · email only'}
           </div>
         </div>
         <span className="badge badge-pending">{league.status}</span>
@@ -250,6 +251,12 @@ function LeagueRow({ league, onChange, setToast, setError }) {
           setAdminEmail('');
           setToast('League admin updated');
         })}>Set admin</button>
+        <button className="btn-sm btn-ghost" type="button" onClick={act(async () => {
+          await api.patch(`/api/admin/leagues/${league.id}`, { smsEnabled: !league.smsEnabled });
+          setToast(league.smsEnabled
+            ? `Texts off for ${league.name} — email only`
+            : `Texts on for ${league.name}`);
+        })}>{league.smsEnabled ? 'Texts: on' : 'Texts: off'}</button>
         <button className="btn-sm btn-ghost" type="button" onClick={act(async () => {
           await api.post(`/api/admin/leagues/${league.id}/recompute`);
           setToast('League recomputed from the fixtures');
@@ -599,12 +606,18 @@ function NotificationsSection({ setToast, setError }) {
           <label className="checkbox">
             <input type="checkbox" checked={draft.channels.email}
               onChange={(event) => setDraft({ ...draft, channels: { ...draft.channels, email: event.target.checked } })} />
-            <span>Email channel enabled platform-wide</span>
+            <span>Email enabled platform-wide</span>
           </label>
           <label className="checkbox">
             <input type="checkbox" checked={draft.channels.sms}
               onChange={(event) => setDraft({ ...draft, channels: { ...draft.channels, sms: event.target.checked } })} />
-            <span>SMS channel enabled platform-wide</span>
+            <span>
+              Texts enabled platform-wide
+              <span className="tiny dim" style={{ display: 'block' }}>
+                The master switch. Off here means no league sends texts, whatever its own
+                setting. Each league can also be set to email only under Leagues.
+              </span>
+            </span>
           </label>
         </div>
 

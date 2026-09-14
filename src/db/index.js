@@ -27,6 +27,7 @@ ensureColumn('leagues', 'secondary_color', "TEXT NOT NULL DEFAULT '#2f6df6'");
 ensureColumn('leagues', 'logo_data', 'BLOB');
 ensureColumn('leagues', 'logo_mime', 'TEXT');
 ensureColumn('leagues', 'logo_preset', 'TEXT');
+ensureColumn('leagues', 'sms_enabled', 'INTEGER NOT NULL DEFAULT 1');
 ensureColumn('leagues', 'config_locked_at', 'TEXT');
 ensureColumn('leagues', 'config_locked_by', 'INTEGER');
 

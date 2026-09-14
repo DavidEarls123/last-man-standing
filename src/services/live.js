@@ -34,10 +34,18 @@ export function addClient(res, { leagueId, round }) {
   res.on('close', () => clients.delete(res));
 }
 
-/** Push the latest scores and pick counts to everyone watching. */
+/**
+ * Push the latest scores and pick counts to everyone watching.
+ *
+ * Viewers cluster on the same handful of league/round pairs on a Saturday
+ * afternoon, so each payload is built once and sent to everyone on it.
+ */
 export function broadcastLive() {
+  const built = new Map();
   for (const [res, subscription] of clients) {
-    const payload = payloadFor(subscription.leagueId, subscription.round);
+    const key = `${subscription.leagueId}:${subscription.round ?? 'current'}`;
+    if (!built.has(key)) built.set(key, payloadFor(subscription.leagueId, subscription.round));
+    const payload = built.get(key);
     if (payload) send(res, 'scores', payload);
   }
   return clients.size;

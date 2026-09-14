@@ -150,6 +150,12 @@ export default function LeagueAdminPage() {
       </Card>
 
       <Card title="Message everyone">
+        {league.league.smsEnabled === false && (
+          <Alert tone="info">
+            This league is set to email only — the platform admin controls whether it can send
+            texts.
+          </Alert>
+        )}
         <form className="stack" onSubmit={run(async () => {
           const result = await api.post(`/api/leagues/${leagueId}/announce`, announcement);
           setAnnouncement({ subject: '', message: '' });

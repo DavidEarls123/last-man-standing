@@ -46,6 +46,7 @@ adminRouter.get('/overview', wrap(async (req, res) => {
       nextOpenRound: context.nextOpenRound,
       entryClosed: context.entryClosed,
       configLocked: context.configLocked,
+      smsEnabled: Boolean(league.sms_enabled),
     };
   });
   res.json({ counts, leagues, settings: notificationSettings() });
@@ -147,6 +148,8 @@ const leagueSchema = z.object({
   voidPolicy: z.enum(['reselect', 'eliminate', 'survive']).default('reselect'),
   noPickPolicy: z.enum(['auto_alphabetical', 'eliminate']).default('auto_alphabetical'),
   maxEntries: z.number().int().min(2).nullable().optional(),
+  // Super admin only: texts cost money, so they are switchable per league.
+  smsEnabled: z.boolean().optional(),
 });
 
 adminRouter.post('/leagues', wrap(async (req, res) => {
@@ -199,7 +202,7 @@ adminRouter.patch('/leagues/:leagueId', wrap(async (req, res) => {
 
   run(
     `UPDATE leagues SET name = ?, start_gameweek = ?, admin_user_id = ?, opening_picks = ?,
-            draw_policy = ?, void_policy = ?, no_pick_policy = ?, max_entries = ?, status = ?
+            draw_policy = ?, void_policy = ?, no_pick_policy = ?, max_entries = ?, sms_enabled = ?, status = ?
      WHERE id = ?`,
     body.name ?? league.name,
     body.startGameweek ?? league.start_gameweek,
@@ -209,6 +212,7 @@ adminRouter.patch('/leagues/:leagueId', wrap(async (req, res) => {
     body.voidPolicy ?? league.void_policy,
     body.noPickPolicy ?? league.no_pick_policy,
     body.maxEntries === undefined ? league.max_entries : body.maxEntries,
+    body.smsEnabled === undefined ? league.sms_enabled : Number(body.smsEnabled),
     body.status ?? league.status,
     league.id,
   );

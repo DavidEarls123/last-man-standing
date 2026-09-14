@@ -126,6 +126,59 @@ test('results notices go to the channels each player has turned on', async () =>
   );
 });
 
+test('texts can be switched off for one league, or for the whole platform', async () => {
+  setSetting('notifications', {
+    enabled: true, reminderOffsetsMinutes: [60], finalCallOffsetMinutes: null,
+    resultNotices: true, channels: { email: true, sms: true },
+  });
+  const owner = makeUser('owner3b');
+  const league = createLeague({
+    name: 'Texts off', seasonId: season.seasonId, startGameweek: 4, createdBy: owner.id,
+  });
+  const player = makeUser('textme', { email: true, phone: true });
+  const entry = joinLeague(league, player.id);
+
+  // By default a league may send both.
+  notifications.queueEliminationNotices(league, [{ entry, reason: 'loss', teamName: 'Everton' }], 1);
+  assert.deepEqual(
+    all('SELECT channel FROM notifications WHERE user_id = ?', player.id).map((row) => row.channel).sort(),
+    ['email', 'sms'],
+  );
+
+  // The super admin turns texts off for this league only.
+  run('UPDATE leagues SET sms_enabled = 0 WHERE id = ?', league.id);
+  const quieter = get('SELECT * FROM leagues WHERE id = ?', league.id);
+  notifications.queueEliminationNotices(quieter, [{ entry, reason: 'loss', teamName: 'Fulham' }], 2);
+  assert.deepEqual(
+    all("SELECT channel FROM notifications WHERE user_id = ? AND dedupe_key LIKE '%:2:%'", player.id)
+      .map((row) => row.channel),
+    ['email'],
+    'email still goes, the text does not',
+  );
+
+  // Another league is unaffected.
+  const other = createLeague({
+    name: 'Texts on', seasonId: season.seasonId, startGameweek: 5, createdBy: owner.id,
+  });
+  const otherEntry = joinLeague(other, player.id);
+  notifications.queueEliminationNotices(other, [{ entry: otherEntry, reason: 'loss', teamName: 'Leeds' }], 1);
+  assert.ok(
+    all('SELECT * FROM notifications WHERE league_id = ? AND channel = ?', other.id, 'sms').length > 0,
+  );
+
+  // The platform master switch overrides every league.
+  setSetting('notifications', {
+    enabled: true, reminderOffsetsMinutes: [60], finalCallOffsetMinutes: null,
+    resultNotices: true, channels: { email: true, sms: false },
+  });
+  notifications.queueEliminationNotices(other, [{ entry: otherEntry, reason: 'loss', teamName: 'Wolves' }], 3);
+  assert.deepEqual(
+    all("SELECT channel FROM notifications WHERE user_id = ? AND dedupe_key LIKE '%:3:%'", player.id)
+      .map((row) => row.channel),
+    ['email'],
+  );
+});
+
 test('switching notifications off queues nothing', () => {
   setSetting('notifications', { enabled: false, reminderOffsetsMinutes: [60], resultNotices: false });
   const owner = makeUser('owner4');

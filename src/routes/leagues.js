@@ -44,6 +44,7 @@ const summarise = (league, context, entry, role) => ({
   entryDeadline: context.entryDeadline,
   entryClosed: context.entryClosed,
   configLocked: context.configLocked,
+  smsEnabled: Boolean(league.sms_enabled),
   configLockedAt: context.configLockedAt,
   configLockReason: context.configLockReason,
   nextOpenRound: context.nextOpenRound,
