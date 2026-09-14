@@ -52,6 +52,8 @@ const summarise = (league, context, entry, role) => ({
   roundInPlay: context.roundInPlay,
   lastSettledRound: context.lastSettledRound,
   focusRound: context.focusRound,
+  // The full span of rounds, so the round picker can show the whole season.
+  lastRound: context.rounds[context.rounds.length - 1]?.round ?? 1,
   teamCount: context.teamCount,
   role,
   entry: entry

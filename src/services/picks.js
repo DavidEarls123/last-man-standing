@@ -1,7 +1,7 @@
 import { all, get, run, audit } from '../db/index.js';
 import { badRequest, conflict, notFound } from '../lib/errors.js';
 import { nowIso } from '../lib/time.js';
-import { availableTeams, cycleForRound, isOpeningRound, validatePick } from '../domain/rules.js';
+import { availableTeams, cycleForRound, fixtureOutcome, isOpeningRound, validatePick } from '../domain/rules.js';
 import { gameweekForLeagueRound, leagueContext } from './leagues.js';
 
 /** A pick in the opening block is final once saved, unless it has been voided. */
@@ -187,6 +187,7 @@ export function pickPopularity(league, round) {
 
   const teams = rows.map((row) => {
     const fixture = fixtureForTeam(gameweek.id, row.team_id);
+    const home = fixture ? fixture.home_team_id === row.team_id : null;
     return {
       teamId: row.team_id,
       name: row.name,
@@ -194,6 +195,16 @@ export function pickPopularity(league, round) {
       picks: row.picks,
       pct: totalPicks ? Math.round((row.picks / totalPicks) * 1000) / 10 : 0,
       fixtureId: fixture?.id ?? null,
+      // How the club themselves got on, so the popularity list can say at a
+      // glance whether backing them paid off.
+      status: fixture?.status ?? null,
+      outcome: fixture ? fixtureOutcome(fixture, row.team_id) : 'void',
+      scored: fixture ? (home ? fixture.home_score : fixture.away_score) : null,
+      conceded: fixture ? (home ? fixture.away_score : fixture.home_score) : null,
+      opponentShort: fixture
+        ? get('SELECT short_name FROM teams WHERE id = ?', home ? fixture.away_team_id : fixture.home_team_id)?.short_name ?? null
+        : null,
+      home,
     };
   });
 

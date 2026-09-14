@@ -1,6 +1,7 @@
 import { all, get } from '../db/index.js';
 import {
-  cycleForRound, decideWinners, fixtureOutcome, gameweekForRound, resultForOutcome,
+  cycleForRound, decideWinners, fixtureOutcome, gameweekForRound, nextAlphabeticalTeam,
+  resultForOutcome,
 } from '../domain/rules.js';
 import { leagueContext, policiesFor } from './leagues.js';
 
@@ -197,6 +198,27 @@ export function verifyLeague(leagueId) {
   // ------------------------------------------- entries: in, out and why -----
   const settledRounds = context.rounds.filter((roundInfo) => roundInfo.settled).map((roundInfo) => roundInfo.round);
   const lastSettled = settledRounds.length ? Math.max(...settledRounds) : 0;
+  const roundByNumber = new Map(context.rounds.map((roundInfo) => [roundInfo.round, roundInfo]));
+
+  /**
+   * Would the missed-deadline rule have had anything to hand this entry? If
+   * every club is spent, or none of the ones left had a game on, then no pick
+   * is the right answer rather than a hole in the records.
+   */
+  const assignableTeam = (entry, round) => {
+    const roundInfo = roundByNumber.get(round);
+    if (!roundInfo) return null;
+    const playable = new Set();
+    for (const fixture of roundInfo.fixtures) {
+      if (fixture.status === 'postponed' || fixture.status === 'abandoned') continue;
+      playable.add(fixture.home_team_id);
+      playable.add(fixture.away_team_id);
+    }
+    return nextAlphabeticalTeam(
+      context.teams, picksByEntry.get(entry.id) ?? [], round, context.teamCount || 1,
+      (teamId) => playable.has(teamId),
+    );
+  };
 
   for (const entry of entries) {
     if (entry.status === 'withdrawn') continue;
@@ -217,6 +239,7 @@ export function verifyLeague(leagueId) {
         if (round > judgedThrough) continue; // the league was already decided
         if (byRound.has(round)) continue;
         if (entry.reinstated_at) continue; // reinstated part way through
+        if (policies.noPickPolicy === 'auto_alphabetical' && !assignableTeam(entry, round)) continue;
         issue(issues, SEVERITY.error, 'missing_pick',
           `No pick recorded for settled round ${round}, yet they are still in`,
           { entryId: entry.id, entryName: entry.display_name, round });

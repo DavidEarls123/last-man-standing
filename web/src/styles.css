@@ -473,6 +473,90 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
   box-shadow: 0 1px 3px rgba(19, 26, 43, 0.12);
 }
 
+/* ----------------------------------------------------------- round strip -- */
+
+/*
+ * Ten rounds fit across once there is room for them; below that the strip
+ * scrolls rather than shrinking the buttons past the point of being tappable.
+ */
+.roundstrip { display: grid; gap: 8px; }
+.roundstrip-track {
+  display: grid;
+  grid-auto-flow: column;
+  /* max(), not minmax(): a flexible track would stretch to swallow the whole
+     season, and the point is that exactly ten rounds are on screen. */
+  grid-auto-columns: max(46px, calc((100% - 9 * 6px) / 10));
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+  overscroll-behavior-x: contain;
+}
+.roundstrip-track::-webkit-scrollbar { height: 5px; }
+.roundstrip-track::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 99px; }
+
+.roundstrip-btn {
+  scroll-snap-align: start;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: 8px 2px 6px;
+  border-radius: var(--radius-xs);
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: none;
+  transition: transform 0.08s ease;
+}
+.roundstrip-btn:disabled { opacity: 0.55; cursor: default; }
+.roundstrip-btn:not(:disabled):active { transform: translateY(1px); }
+.roundstrip-n { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.roundstrip-mark { font-size: 0.6rem; height: 0.7em; opacity: 0.85; }
+
+.roundstrip-btn.tone-won  { background: color-mix(in srgb, var(--win) 14%, #fff); border-color: color-mix(in srgb, var(--win) 40%, #fff); color: color-mix(in srgb, var(--win) 78%, #000); }
+.roundstrip-btn.tone-lost { background: color-mix(in srgb, var(--out) 14%, #fff); border-color: color-mix(in srgb, var(--out) 40%, #fff); color: color-mix(in srgb, var(--out) 78%, #000); }
+.roundstrip-btn.tone-now  { background: color-mix(in srgb, var(--warn) 20%, #fff); border-color: color-mix(in srgb, var(--warn) 55%, #fff); color: color-mix(in srgb, var(--warn) 82%, #000); }
+.roundstrip-btn.tone-past,
+.roundstrip-btn.tone-future { background: var(--sunken); border-color: var(--line); color: var(--ink-faint); }
+
+/* The round on screen keeps its tone but gains a ring, so "where I am" and
+   "how it went" are two separate signals rather than one. */
+.roundstrip-btn.selected {
+  border-color: var(--ink);
+  color: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.roundstrip-key { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.roundstrip-key span { display: inline-flex; align-items: center; gap: 5px; }
+.key-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.key-dot.tone-won { background: var(--win); }
+.key-dot.tone-lost { background: var(--out); }
+.key-dot.tone-now { background: var(--warn); }
+.key-dot.tone-future { background: var(--line-strong); }
+
+/* --------------------------------------------------------- pick outcomes -- */
+
+.pop-outcome {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pop-outcome.win  { background: color-mix(in srgb, var(--win) 15%, #fff); color: color-mix(in srgb, var(--win) 80%, #000); }
+.pop-outcome.loss { background: color-mix(in srgb, var(--out) 15%, #fff); color: color-mix(in srgb, var(--out) 80%, #000); }
+.pop-outcome.draw { background: color-mix(in srgb, var(--out) 12%, #fff); color: color-mix(in srgb, var(--out) 75%, #000); }
+.pop-outcome.void { background: var(--sunken); color: var(--ink-soft); }
+.pop-outcome.live { background: color-mix(in srgb, var(--warn) 18%, #fff); color: color-mix(in srgb, var(--warn) 82%, #000); }
+.pop-outcome.pending { background: var(--sunken); color: var(--ink-faint); }
+
+.popularity-head { display: flex; align-items: center; gap: 8px; }
+.popularity-head .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ----------------------------------------------------------------- table -- */
 
 .table-wrap { overflow-x: auto; }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useLeague } from '../league.jsx';
 import { Alert, Card, Countdown, Spinner, Toast } from '../components/ui.jsx';
+import RoundStrip, { roundToneFor } from '../components/RoundStrip.jsx';
 import { formatShort } from '../lib/format.js';
 
 export default function PickPage() {
@@ -21,6 +22,10 @@ export default function PickPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(openRounds), JSON.stringify(reselect)]);
 
+  const current = info.focusRound ?? info.nextOpenRound ?? rounds[0] ?? 1;
+  const lastRound = info.lastRound ?? Math.max(current, rounds[rounds.length - 1] ?? 1);
+  const openSet = useMemo(() => new Set(rounds), [rounds]);
+
   const [round, setRound] = useState(rounds[0] ?? 1);
   const [teams, setTeams] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -31,20 +36,46 @@ export default function PickPage() {
   const existing = picks.find((pick) => pick.round === round);
   const reselecting = reselect.find((item) => item.round === round);
   const locked = Boolean(existing?.locked) && !reselecting;
-  const roundMarker = (option) => {
+  // Rounds you may still act on stay live in the strip; the rest are there so
+  // you can look back at how the season has gone, not to be picked again.
+  const openForPicking = openSet.has(round);
+  const stateFor = (option) => {
+    const base = roundToneFor(option, {
+      current,
+      picks,
+      lastSettledRound: info.lastSettledRound ?? 0,
+    });
     const pick = picks.find((entry) => entry.round === option);
-    if (!pick) return '';
-    return pick.locked && !reselect.some((item) => item.round === option) ? ' 🔒' : ' ✓';
+    const needsReselect = reselect.some((item) => item.round === option);
+    if (openSet.has(option)) {
+      const marker = needsReselect ? '↺' : pick ? (pick.locked ? '🔒' : '✓') : '';
+      return {
+        ...base,
+        marker: marker || base.marker,
+        title: needsReselect
+          ? `Round ${option} — pick again`
+          : pick ? `Round ${option} — ${pick.team}` : `Round ${option} — no pick yet`,
+      };
+    }
+    return {
+      ...base,
+      disabled: false,
+      title: pick ? `Round ${option} — ${pick.team} (closed)` : `Round ${option} — closed`,
+    };
   };
 
   useEffect(() => {
     setTeams(null);
     setError('');
     setSelected(null);
+    if (!openSet.has(round)) return undefined;
+    let cancelled = false;
     api.get(`/api/leagues/${league.leagueId}/rounds/${round}/teams`)
-      .then((data) => setTeams(data.teams))
-      .catch((loadError) => setError(loadError.message));
-  }, [league.leagueId, round]);
+      .then((data) => !cancelled && setTeams(data.teams))
+      .catch((loadError) => !cancelled && setError(loadError.message));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [league.leagueId, round, openForPicking]);
 
   async function save() {
     const isOpening = info.openingPicks >= 2 && round <= info.openingPicks && !reselecting;
@@ -94,46 +125,45 @@ export default function PickPage() {
         </p>
       </div>
 
-      {rounds.length > 1 && (
-        <>
-          {rounds.length <= 5 ? (
-            <div className="segmented">
-              {rounds.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={option === round ? 'active' : ''}
-                  onClick={() => setRound(option)}
-                >
-                  Round {option}{roundMarker(option)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <label className="field">
-              Round
-              <select value={round} onChange={(event) => setRound(Number(event.target.value))}>
-                {rounds.map((option) => (
-                  <option key={option} value={option}>
-                    Round {option}
-                    {option === rounds[0] ? ' — next up' : ''}
-                    {roundMarker(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <p className="tiny dim" style={{ margin: '-4px 0 0' }}>
-            {owedOpening.length > 0
-              ? `Rounds 1 to ${info.openingPicks} are due before the competition starts and cannot be changed once saved. Anything after that is optional and stays changeable until its gameweek kicks off.`
-              : 'Only the round coming up needs a pick. Anything further ahead is optional, and stays changeable until its gameweek kicks off.'}
-            {' '}A club you use in any round is gone until all {info.teamCount} have been used,
-            whichever order you pick them in.
-          </p>
-        </>
-      )}
+      <RoundStrip
+        lastRound={lastRound}
+        value={round}
+        current={current}
+        onChange={setRound}
+        stateFor={stateFor}
+      />
+      <p className="tiny dim" style={{ margin: '-4px 0 0' }}>
+        {owedOpening.length > 0
+          ? `Rounds 1 to ${info.openingPicks} are due before the competition starts and cannot be changed once saved. Anything after that is optional and stays changeable until its gameweek kicks off.`
+          : 'Only the round coming up needs a pick. Anything further ahead is optional, and stays changeable until its gameweek kicks off.'}
+        {' '}A club you use in any round is gone until all {info.teamCount} have been used,
+        whichever order you pick them in. Scroll the strip to look further back or further ahead.
+      </p>
 
-      {reselecting ? (
+      {!openForPicking ? (
+        <Card title={`Round ${round} — closed`}>
+          {existing ? (
+            <>
+              <p style={{ margin: 0 }}>
+                You picked <strong>{existing.team}</strong>
+                {existing.autoAssigned && ' (assigned for you when the deadline passed)'}.
+              </p>
+              <p className="small muted" style={{ marginTop: 6, marginBottom: 0 }}>
+                {existing.result === 'survived' ? 'They won, so you went through.'
+                  : existing.result === 'eliminated' ? 'They did not win, so that was your run over.'
+                  : 'Still waiting on the result.'}
+              </p>
+            </>
+          ) : (
+            <p className="muted" style={{ margin: 0 }}>
+              You had no pick in this round.
+            </p>
+          )}
+          <p className="tiny dim" style={{ marginBottom: 0, marginTop: 10 }}>
+            This round has kicked off, so nothing can be changed. Tap an orange or grey round to pick.
+          </p>
+        </Card>
+      ) : reselecting ? (
         <Alert tone="warn">
           <strong>{reselecting.team}</strong>'s game is off, so pick again from whatever has not kicked off
           yet{reselecting.deadline ? <> — <Countdown deadline={reselecting.deadline} /> left</> : ''}.
@@ -151,9 +181,9 @@ export default function PickPage() {
       )}
 
       <Alert tone="error">{error}</Alert>
-      {!teams && !error && <Spinner />}
+      {openForPicking && !teams && !error && <Spinner />}
 
-      {teams && (
+      {openForPicking && teams && (
         <Card title={reselecting ? `Round ${round} — replacement pick` : `Round ${round} — pick a winner`}>
           <div className="grid-auto">
             {teams.map((team) => {

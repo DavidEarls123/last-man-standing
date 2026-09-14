@@ -70,7 +70,9 @@ function LeagueNav() {
           Manage
         </NavLink>
       )}
-      <NavLink to="/account">
+      {/* Inside a league the account page keeps the league's tabs, so you can
+          get back to Home or Pick without going out to the league list. */}
+      <NavLink to={`${base}/account`}>
         <span className="tab-icon" aria-hidden="true">👤</span>
         Account
       </NavLink>
@@ -90,6 +92,7 @@ function LeagueShell() {
           <Route path="gameweek" element={<GameweekPage />} />
           <Route path="pick" element={<PickPage />} />
           <Route path="admin" element={<LeagueAdminPage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="*" element={<Navigate to="." replace />} />
         </Routes>
       </div>
