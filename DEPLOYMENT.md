@@ -24,12 +24,38 @@ a small always-on Linux box with a disk will.
 
 | Option | Cost | Notes |
 | --- | --- | --- |
-| **A small VPS** (Hetzner, DigitalOcean, Linode) | ~£4–6/month | The most control, and what section 4 walks through. A 1GB box is plenty for hundreds of players. |
+| **A small VPS** (Hetzner, DigitalOcean, Linode) | ~£4–6/month | The most control, and what section 4 walks through. **Recommended: Hetzner CX22** — 2 vCPU, 4GB RAM, 40GB disk, ~£4.50/month, Falkenstein or Helsinki, Ubuntu 24.04. DigitalOcean's $6 London droplet is the same idea with better docs. |
 | **Fly.io** | Free tier may cover it | Needs a persistent volume mounted and `min_machines_running = 1`. |
 | **Railway / Render** | ~£5/month | Add a persistent disk and pin to one instance. |
 | **A Raspberry Pi at home** | Hardware only | Fine for a pub league. Pair with a Cloudflare Tunnel so you do not open ports. |
 
 ---
+
+## 1b. How much it can take
+
+Measured on a test platform of 20 leagues, 2,000 entries and 20,000 picks:
+
+| | |
+| --- | --- |
+| Whole database on disk | 6.8 MB |
+| Loading a league's home tab | 4 ms |
+| Gameweek popularity and scores | 1 ms |
+| Building someone's team picker | 3 ms |
+| Re-checking every result in a league | 17 ms |
+
+The database will not be your limit — one small VPS runs tens of thousands of
+players across hundreds of leagues. What runs out first, in order:
+
+1. **Your email allowance.** Up to four reminders per player per round, so a
+   300/day free tier is roughly 75 players before you need a paid plan (still
+   £10–15/month for thousands).
+2. **Your SMS bill.** At 4p a message, 200 players × 2 texts a week ≈ £65/month.
+   Hence the per-league switch.
+3. **Saturday afternoon.** Everyone on live scores at once; each viewer holds an
+   open connection. A 4GB box handles thousands, and each gameweek's scores are
+   computed once per round rather than once per viewer.
+4. **One server.** The scheduler rules out running two copies. Long before that
+   mattered you would move to Postgres and split the workers out.
 
 ## 2. The database — there is nothing to set up
 
@@ -285,6 +311,14 @@ TWILIO_AUTH_TOKEN=xxxxxxxx
 TWILIO_FROM=+447700900000
 ```
 
+**Three switches control every text**, and all three must be on before one is
+sent:
+
+- **Platform → Notifications** — the master switch for the whole platform.
+- **Platform → Leagues** — a "Texts: on / off" button per league, so one league
+  can have them and the rest stay email only. The league's admin is told.
+- **Account → Notifications** — each player picks their own channels.
+
 Buy a UK number in the Twilio console. Two practical points: UK alphanumeric
 sender IDs need registration, and any marketing-adjacent messaging needs an
 opt-out — deadline reminders are transactional and players choose their
@@ -315,6 +349,20 @@ npm run superadmin:reset -- --clear-totp  # ...and clear two-factor
 There is deliberately **no email password reset for the super admin** — that
 would make the whole platform only as strong as one inbox, and it is the
 easiest thing to phish. Ordinary players do get email/SMS resets.
+
+### Which authenticator
+
+Standard TOTP, so anything works. In order of preference:
+
+1. **Your password manager** (1Password, Bitwarden, iCloud Keychain) — already
+   backed up and synced, and it fills the code for you.
+2. **Authy** — free, and backs codes up to the cloud, so a lost phone is an
+   inconvenience rather than an emergency.
+3. **Google or Microsoft Authenticator** — perfectly fine, just no better.
+
+**Not text-message codes.** They can be intercepted by SIM swapping, and for the
+account that reaches every league on the platform that is a bad trade. The app
+deliberately does not offer them for the super admin.
 
 League admins and players can turn on two-factor for themselves under
 **Account** too; it is only compulsory for you.
