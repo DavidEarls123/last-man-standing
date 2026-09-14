@@ -60,6 +60,29 @@ across every screen, since a stray wide element is the usual way responsive layo
 - **Player** — one account, any number of leagues. Joins with a code, makes picks, follows
   along after elimination.
 
+## Try it free, before committing to anything
+
+No card, no accounts, no server.
+
+```bash
+npm install && npm run build
+npm run seed && npm run demo     # sample fixtures and a 16-player league
+npm start                        # http://localhost:3000
+```
+
+Then three things make it a real test rather than a poke around:
+
+| Command | What it gives you |
+| --- | --- |
+| `npm run share` | A public HTTPS address anyone can open (`*.trycloudflare.com`), free and with no Cloudflare account. Needs the small `cloudflared` binary; the command tells you how to install it. Send friends the join code and let them pick. |
+| `npm run simulate` | Fast-forward the football. `-- --advance` plays out the next round exactly as a real weekend does — deadline passes, missing picks auto-assigned, games played, round settled — and prints who went out and why. `-- --rounds=10` runs a whole season in seconds. |
+| `npm run simulate -- --deadline=10` | Moves the next deadline ten minutes away, so you can watch reminders go out and see the auto-pick land on whoever leaves it too late. |
+
+With no email service configured, messages are written down rather than sent: read them under
+**Platform → Notifications → Recent messages**, or in the terminal.
+
+Everything carries over when you do go live — same code, same database file.
+
 ## Getting it live
 
 [**DEPLOYMENT.md**](DEPLOYMENT.md) is the full walkthrough: hosting, the

@@ -252,3 +252,28 @@ test('replaying a league does not raise false alarms along the way', () => {
   assert.equal(after, before, 'no mid-replay complaints about rounds not yet replayed');
   assert.equal(verifyLeague(league.id).ok, true);
 });
+
+test('a pick banked for later by someone who then went out is left alone', () => {
+  const { league, loser, pool } = playedLeague('Banked ahead', 30);
+
+  // They had already chosen for a later round before their run ended.
+  submitPick({ league, entry: loser, round: 4, teamId: pool[8].id, actorUserId: null, override: true });
+  assert.equal(get('SELECT status FROM entries WHERE id = ?', loser.id).status, 'eliminated');
+
+  // Round 4 is played out. Their pick stays pending, because they were not in it.
+  run(
+    `UPDATE fixtures SET status = 'finished', home_score = 3, away_score = 0
+     WHERE gameweek_id = (SELECT id FROM gameweeks WHERE season_id = ? AND number = 33)`,
+    season.seasonId,
+  );
+  settleRound(league.id, 4, { force: true });
+
+  const banked = get('SELECT * FROM picks WHERE entry_id = ? AND round_number = 4', loser.id);
+  assert.equal(banked.result, 'pending', 'never judged');
+  const report = verifyLeague(league.id);
+  assert.equal(report.ok, true, JSON.stringify(report.issues));
+
+  // But judging it would be wrong, and the check says so.
+  run("UPDATE picks SET outcome = 'win', result = 'survived' WHERE id = ?", banked.id);
+  assert.ok(verifyLeague(league.id).issues.some((entry) => entry.code === 'judged_after_exit'));
+});

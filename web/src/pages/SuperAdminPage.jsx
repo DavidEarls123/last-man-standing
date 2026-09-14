@@ -641,31 +641,64 @@ function describeOffset(minutes) {
   return `${minutes}m`;
 }
 
+/**
+ * Every message the app has produced, and what it said. With no email service
+ * configured nothing is actually sent, so this is where you read them while
+ * you are testing.
+ */
 function OutboxCard() {
-  const { data, loading } = useAsync(() => api.get('/api/admin/notifications'));
+  const { data, loading, reload } = useAsync(() => api.get('/api/admin/notifications'));
+  const [open, setOpen] = useState(null);
   if (loading) return <Spinner />;
+
   return (
-    <Card title="Recent messages">
+    <Card title="Recent messages" action={
+      <button className="btn-ghost btn-sm" type="button" onClick={reload}>Refresh</button>
+    }>
       {data.notifications.length === 0 && <Empty>Nothing sent yet.</Empty>}
-      <div className="table-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
-        <table>
-          <thead><tr><th>When</th><th>To</th><th>Channel</th><th>Kind</th><th>Status</th></tr></thead>
-          <tbody>
-            {data.notifications.slice(0, 40).map((notification) => (
-              <tr key={notification.id}>
-                <td className="muted">{formatShort(notification.scheduled_for)}</td>
-                <td>{notification.display_name}</td>
-                <td>{notification.channel}</td>
-                <td className="muted">{notification.kind}</td>
-                <td>
-                  <span className={`badge ${notification.status === 'sent' ? 'badge-in' : notification.status === 'failed' ? 'badge-out' : 'badge-pending'}`}>
-                    {notification.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <p className="tiny dim" style={{ marginTop: 0 }}>
+        Tap a message to read it. With no email or SMS service set up these are written here
+        and printed to the server log rather than delivered — which is all you need for testing.
+      </p>
+      <div className="list" style={{ maxHeight: 460, overflowY: 'auto' }}>
+        {data.notifications.slice(0, 40).map((notification) => {
+          const expanded = open === notification.id;
+          return (
+            <div key={notification.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                aria-expanded={expanded}
+                style={{ border: 'none', padding: 0, background: 'none', display: 'block', textAlign: 'left', flex: '1 1 100%' }}
+                onClick={() => setOpen(expanded ? null : notification.id)}
+              >
+                <span className="row-tight" style={{ flexWrap: 'wrap' }}>
+                  <span className={`badge ${
+                    notification.status === 'sent' ? 'badge-in'
+                      : notification.status === 'failed' ? 'badge-out' : 'badge-pending'
+                  }`}>{notification.status}</span>
+                  <span className="badge badge-pending">{notification.channel}</span>
+                  <span className="small strong">{notification.display_name}</span>
+                </span>
+                <span className="small" style={{ display: 'block', marginTop: 4 }}>{notification.subject}</span>
+                <span className="tiny dim">{formatShort(notification.scheduled_for)} · {notification.kind}</span>
+              </button>
+              {expanded && (
+                <pre style={{
+                  flex: '1 1 100%',
+                  margin: '8px 0 0',
+                  padding: 12,
+                  background: 'var(--sunken)',
+                  borderRadius: 'var(--radius-xs)',
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'anywhere',
+                  font: 'inherit',
+                  fontSize: '0.85rem',
+                }}>{notification.body}</pre>
+              )}
+            </div>
+          );
+        })}
       </div>
     </Card>
   );

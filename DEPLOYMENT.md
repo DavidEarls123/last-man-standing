@@ -7,6 +7,48 @@ Work through it in order. The whole thing is about an hour if the DNS behaves.
 
 ---
 
+## 0. Try it free first
+
+Nothing below needs buying. Run it locally, put it on a public address, and play
+out a season — then decide.
+
+```bash
+git clone https://github.com/DavidEarls123/last-man-standing.git
+cd last-man-standing && npm install && npm run build
+npm run seed && npm run demo && npm start     # http://localhost:3000
+```
+
+**A free public URL.** Cloudflare hands out throwaway HTTPS addresses with no
+account and no card. Install their binary once (`brew install cloudflared`,
+`winget install --id Cloudflare.cloudflared`, or
+`sudo apt-get install -y cloudflared`), then:
+
+```bash
+npm run share
+```
+
+It prints something like `https://modern-stack-42d9.trycloudflare.com`, sets
+`PUBLIC_URL` to match so invite links work, and dies when you press Ctrl-C. The
+address changes each time and only works while your machine is awake — fine for
+a weekend of testing, not for a real competition.
+
+**Fast-forward the football.**
+
+```bash
+npm run simulate                    # where every league is up to
+npm run simulate -- --advance       # play out the next round
+npm run simulate -- --rounds=10     # play out ten
+npm run simulate -- --deadline=10   # put the next deadline 10 minutes away
+```
+
+Advancing a round does what a real weekend does, in order: the deadline passes,
+anyone without a pick is handed the next club they have not used, the games are
+played, the round is settled. It prints the funnel and cross-checks itself.
+
+**Read the emails without an email account.** Nothing is sent while no provider
+is configured; messages are readable under **Platform → Notifications → Recent
+messages** and printed to the terminal.
+
 ## 1. What this app needs from a host
 
 Three things, and they rule out some popular platforms:

@@ -119,6 +119,18 @@ export function verifyLeague(leagueId) {
 
     if (pick.round_number > judgedThrough) continue; // played out after the league was won
 
+    // A pick banked for a later round by someone who then went out is never
+    // judged, and should not be. Only the round that ended their run counts.
+    const spentRound = entry.status === 'eliminated' ? entry.eliminated_round : null;
+    if (entry.status === 'withdrawn' || (spentRound != null && pick.round_number > spentRound)) {
+      if (pick.result !== 'pending') {
+        issue(issues, SEVERITY.error, 'judged_after_exit',
+          `Round ${pick.round_number} was judged even though they were already out in round ${spentRound}`,
+          where);
+      }
+      continue;
+    }
+
     const roundInfo = context.roundInfo(pick.round_number);
     const fixtures = fixturesByGameweek.get(pick.gameweek_id) ?? [];
     const resolution = resolveFixture(fixtures, pick.team_id);
