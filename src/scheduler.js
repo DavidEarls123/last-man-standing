@@ -130,9 +130,58 @@ function assignLapsedReselections(league, context) {
   return made;
 }
 
+/**
+ * Is there football worth asking about? Anything in play, anything that kicked
+ * off in the last three hours and has not finished, or anything kicking off in
+ * the next quarter of an hour.
+ */
+export function matchWindowOpen(now = Date.now()) {
+  const iso = (ms) => new Date(ms).toISOString();
+  return Boolean(get(
+    `SELECT 1 FROM fixtures
+      WHERE status = 'live'
+         OR (status IN ('scheduled', 'live') AND kickoff BETWEEN ? AND ?)
+      LIMIT 1`,
+    iso(now - 3 * 3_600_000), iso(now + 15 * 60_000),
+  ));
+}
+
+/**
+ * When the next call upstream is allowed.
+ *
+ * A metered provider — a real feed on a rate limited key, possibly shared with
+ * another app — is asked once a minute while matches are on and every quarter
+ * hour otherwise. That is roughly a hundred calls a day instead of fifteen
+ * hundred, and it leaves plenty of room under the limit for whatever else is
+ * using the key. The local provider costs nothing, so it is never held back.
+ */
+let nextFetchAt = 0;
+
+export function resetFetchSchedule() {
+  nextFetchAt = 0;
+}
+
+export async function refreshFixtures(now = Date.now(), provider = footballProvider()) {
+  if (provider.metered && now < nextFetchAt) return [];
+  try {
+    const changed = await provider.refresh();
+    nextFetchAt = now + (matchWindowOpen(now)
+      ? 0
+      : Math.max(config.football.pollSeconds, config.football.idlePollSeconds) * 1000);
+    return changed;
+  } catch (error) {
+    if (error.retryAfterSeconds) {
+      nextFetchAt = now + error.retryAfterSeconds * 1000;
+      console.warn(`[scheduler] ${error.message} — backing off ${error.retryAfterSeconds}s`);
+      return [];
+    }
+    throw error;
+  }
+}
+
 async function tick() {
   try {
-    const changed = await footballProvider().refresh();
+    const changed = await refreshFixtures();
     // Called-off games open a reselection before anything else is decided.
     const reselections = flagReselections();
     applyAutoPicks();
@@ -157,6 +206,7 @@ async function notificationTick() {
 }
 
 export function startScheduler() {
+  resetFetchSchedule();
   const timers = [
     setInterval(tick, Math.max(10, config.football.pollSeconds) * 1000),
     setInterval(notificationTick, 60_000),

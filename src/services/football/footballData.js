@@ -32,6 +32,15 @@ export function createFootballDataProvider({ apiKey, competition = 'PL', seasonI
       `https://api.football-data.org/v4/competitions/${competition}/matches`,
       { headers: { 'X-Auth-Token': apiKey } },
     );
+    if (response.status === 429) {
+      // The free tier counts calls per minute, and the key may be shared with
+      // something else. Upstream tells us how long until the counter resets;
+      // believe it rather than hammering away and staying locked out.
+      const reset = Number(response.headers.get('x-requestcounter-reset'));
+      const error = new Error('football-data.org rate limit reached');
+      error.retryAfterSeconds = Number.isFinite(reset) && reset > 0 ? reset : 60;
+      throw error;
+    }
     if (!response.ok) {
       throw new Error(`football-data.org responded ${response.status}: ${await response.text()}`);
     }
@@ -65,6 +74,9 @@ export function createFootballDataProvider({ apiKey, competition = 'PL', seasonI
 
   return {
     name: 'football-data',
+    // Every refresh costs a call against a rate-limited key, so the scheduler
+    // asks only when there is football to see.
+    metered: true,
 
     /** Pull the whole season: creates gameweeks and fixtures, updates scores. */
     async refresh() {

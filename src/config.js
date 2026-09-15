@@ -59,6 +59,10 @@ export const config = {
     apiKey: process.env.FOOTBALL_DATA_API_KEY || '',
     competition: process.env.FOOTBALL_DATA_COMPETITION || 'PL',
     pollSeconds: Number(process.env.FOOTBALL_POLL_SECONDS || 60),
+    // Between matches there is nothing to learn from asking again every
+    // minute, and a free key is rate limited — often shared with something
+    // else. Away from a kick off we drop to this.
+    idlePollSeconds: Number(process.env.FOOTBALL_IDLE_POLL_SECONDS || 900),
     simulate: process.env.SIMULATE_LIVE === 'true',
   },
 
