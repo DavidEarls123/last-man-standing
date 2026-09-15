@@ -13,6 +13,15 @@ export const BRAND = Object.freeze({
 });
 
 /**
+ * What Off The Bridle Sports runs. One game today; the bar under the company
+ * name is a selector, so a second game slots in beside this one without the
+ * navigation changing shape.
+ */
+export const GAMES = Object.freeze([
+  Object.freeze({ key: 'lms', name: 'Last One Standing', path: '/', live: true }),
+]);
+
+/**
  * The Floodlight palette: a deep pitch green ground with a floodlight-yellow
  * accent. This is the platform's own look, everywhere outside a league. Inside
  * one, the admin's two colours take over.

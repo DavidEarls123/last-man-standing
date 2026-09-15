@@ -104,72 +104,105 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .app { min-height: 100%; display: flex; flex-direction: column; }
 
 /*
- * The platform strip. Deliberately slim and dark: it names the company and the
- * game on every page without competing with whichever league you are looking
- * at. It never takes a league's colours — that is the point of it.
+ * Three bars, narrowing in scope as they go down: the company, then the game,
+ * then (inside a league) the league's own tabs. Neither of the top two ever
+ * takes a league's colours — that is what makes them the platform.
  */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 25;
+/* Both bars stick as one block, so neither needs to know the other's height. */
+.platformbars { position: sticky; top: 0; z-index: 26; }
+.companybar {
   background: var(--pitch-deep);
   color: color-mix(in srgb, var(--chalk) 88%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--chalk) 12%, transparent);
 }
-.topbar-inner {
+.companybar-inner {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 16px;
+  padding: 6px 16px;
   width: 100%;
   max-width: var(--page);
   margin: 0 auto;
 }
-.topbar button, .topbar .btn {
+.companybar button, .companybar .btn {
   white-space: nowrap;
-  padding: 5px 11px;
-  font-size: 0.78rem;
+  padding: 4px 10px;
+  font-size: 0.74rem;
   background: color-mix(in srgb, var(--chalk) 10%, transparent);
   border-color: color-mix(in srgb, var(--chalk) 20%, transparent);
-  color: color-mix(in srgb, var(--chalk) 90%, transparent);
+  color: color-mix(in srgb, var(--chalk) 88%, transparent);
   box-shadow: none;
 }
-.topbar button:hover, .topbar .btn:hover {
+.companybar button:hover, .companybar .btn:hover {
   background: color-mix(in srgb, var(--chalk) 18%, transparent);
   color: var(--chalk);
 }
-.topbar .btn.active { background: var(--floodlight); border-color: var(--floodlight); color: #14251c; }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;                 /* so a long wordmark shrinks instead of pushing */
-  font-weight: 800;
-  letter-spacing: -0.025em;
   text-decoration: none;
   color: inherit;
   white-space: nowrap;
 }
-.topbar-inner > .btn, .topbar-inner > button { flex: none; }
-/* Understated on the strip: the mark is the floodlight yellow, with no plate
-   behind it, so it reads as a signature rather than a badge. */
+.companybar-inner > .btn, .companybar-inner > button { flex: none; }
+/* Understated: the mark is the floodlight yellow with no plate behind it, so
+   it reads as a signature rather than a badge. */
 .brand-mark { display: grid; place-items: center; flex: none; color: var(--floodlight); }
 .brand-mark svg { display: block; }
-
-/* The company sits above the game, quietly. */
-.brand-words { display: grid; line-height: 1.12; min-width: 0; }
 .brand-company {
-  /* Caps and letter-spacing make a line read wider than its size, so this is
-     set small and dim enough that the game's name still leads. */
-  font-size: 0.5rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.085em;
+  letter-spacing: 0.055em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--chalk) 50%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.brand-product { font-size: 0.92rem; font-weight: 700; letter-spacing: -0.02em; }
-.brand-words > span { overflow: hidden; text-overflow: ellipsis; }
+
+/* The game selector. One chip today; a second game is a second chip. */
+.gamebar {
+  background: var(--pitch);
+  border-bottom: 1px solid color-mix(in srgb, #000 22%, transparent);
+}
+.gamebar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 7px;
+  width: 100%;
+  max-width: var(--page);
+  margin: 0 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.gamebar-inner::-webkit-scrollbar { display: none; }
+.gamechip {
+  flex: none;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-decoration: none;
+  color: color-mix(in srgb, var(--chalk) 70%, transparent);
+  border: 1.5px solid transparent;
+}
+.gamechip:hover { color: var(--chalk); border-color: color-mix(in srgb, var(--chalk) 25%, transparent); }
+.gamechip.selected {
+  background: var(--floodlight);
+  border-color: var(--floodlight);
+  color: #14251c;
+}
+.gamebar-soon {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--chalk) 42%, transparent);
+  white-space: nowrap;
+}
+
 .topbar-spacer { flex: 1; }
 
 .content {
@@ -184,7 +217,7 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .columns { display: grid; gap: 14px; align-items: start; }
 
 /* Two classes, so this beats the .btn display rule further down. */
-.topbar .desktop-only { display: none; }
+.companybar .desktop-only { display: none; }
 
 .stack { display: grid; gap: 14px; }
 /* Grid items default to a min-content floor, which lets wide children push the
@@ -201,9 +234,11 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 
 @media (max-width: 430px) {
   h1 { font-size: 1.4rem; }
-  .brand-product { font-size: 0.86rem; }
-  .topbar-inner { gap: 7px; padding: 6px 12px; }
-  .topbar button, .topbar .btn { padding: 5px 10px; font-size: 0.76rem; }
+  .brand-company { font-size: 0.7rem; letter-spacing: 0.04em; }
+  .companybar-inner { gap: 7px; padding: 5px 12px; }
+  .companybar button, .companybar .btn { padding: 4px 9px; font-size: 0.72rem; }
+  .gamebar-inner { padding: 5px 12px 6px; }
+  .gamechip { font-size: 0.86rem; padding: 4px 12px; }
   .content { padding: 14px 14px 104px; }
   .grid-auto { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
@@ -270,6 +305,14 @@ a:hover .card { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   font-size: 26px;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+/* The house mark stands in for a crest, on its own plate rather than the
+   translucent one an emoji sits on. */
+.league-crest.house, .logo-preview.house {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
 }
 
 /* ----------------------------------------------------------- league card -- */
@@ -1050,7 +1093,7 @@ th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; colo
 @media (min-width: 720px) {
   .columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .content { padding: 22px 24px 104px; }
-  .topbar-inner { padding: 12px 24px; }
+  .companybar-inner, .gamebar-inner { padding-inline: 24px; }
 
   /* A single-line field stretched across a desktop is hard to read and to aim at. */
   label.field > input, label.field > select { max-width: 520px; }
@@ -1093,7 +1136,7 @@ th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; colo
   .leaguenav .tab-icon { font-size: 1rem; }
 
   .content { padding-bottom: 48px; }
-  .topbar .desktop-only { display: inline-flex; }
+  .companybar .desktop-only { display: inline-flex; }
   .toast { bottom: 28px; }
 
   /* A phone-width column of clubs looks lost on a wide screen. */

@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Route, Routes, useParams } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from './auth.jsx';
 import { Spinner } from './components/ui.jsx';
 import AuthPage from './pages/AuthPage.jsx';
@@ -12,32 +12,60 @@ import SuperAdminPage from './pages/SuperAdminPage.jsx';
 import JoinPage from './pages/JoinPage.jsx';
 import { LeagueProvider, useLeague } from './league.jsx';
 import Logo from './components/Logo.jsx';
-import { BRAND } from './lib/brand.js';
+import { BRAND, GAMES } from './lib/brand.js';
 
+/**
+ * Three levels, top to bottom: the company, then the game, then the league.
+ *
+ * The company bar carries nothing but the company and your account. The game
+ * bar under it is a selector — one game today, and a second would simply be a
+ * second chip. Everything below belongs to whichever league you are in.
+ */
 function TopBar() {
   const { user, signOut } = useAuth();
+  const { pathname } = useLocation();
+  // Every route belongs to a game. A second game would own its own path prefix;
+  // until then everything is Last One Standing, league pages included.
+  const activeGame = GAMES.find((game) => game.path !== '/' && pathname.startsWith(game.path))
+    ?? GAMES[0];
+
   return (
-    <header className="topbar">
-      <div className="topbar-inner">
-        <NavLink to="/" className="brand">
-          <span className="brand-mark"><Logo size={26} hole="var(--pitch-deep)" /></span>
-          <span className="brand-words">
+    <div className="platformbars">
+      <header className="companybar">
+        <div className="companybar-inner">
+          <NavLink to="/" className="brand">
+            <span className="brand-mark"><Logo size={24} hole="var(--pitch-deep)" /></span>
             <span className="brand-company">{BRAND.company}</span>
-            <span className="brand-product">{BRAND.product}</span>
-          </span>
-        </NavLink>
-        <div className="topbar-spacer" />
-        {user && (
-          <>
-            <NavLink to="/" className="btn btn-sm btn-ghost desktop-only">My leagues</NavLink>
-            {user.isSuperAdmin && (
-              <NavLink to="/admin" className="btn btn-sm btn-ghost">Platform</NavLink>
-            )}
-            <button type="button" className="btn-sm btn-ghost" onClick={signOut}>Sign out</button>
-          </>
-        )}
-      </div>
-    </header>
+          </NavLink>
+          <div className="topbar-spacer" />
+          {user && (
+            <>
+              {user.isSuperAdmin && (
+                <NavLink to="/admin" className="btn btn-sm btn-ghost">Platform</NavLink>
+              )}
+              <NavLink to="/account" className="btn btn-sm btn-ghost desktop-only">Account</NavLink>
+              <button type="button" className="btn-sm btn-ghost" onClick={signOut}>Sign out</button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <nav className="gamebar" aria-label="Games">
+        <div className="gamebar-inner">
+          {GAMES.map((game) => (
+            <Link
+              key={game.key}
+              to={game.path}
+              className={`gamechip${game.key === activeGame.key ? ' selected' : ''}`}
+              aria-current={game.key === activeGame.key ? 'page' : undefined}
+            >
+              {game.name}
+            </Link>
+          ))}
+          {GAMES.length === 1 && <span className="gamebar-soon">More games coming</span>}
+        </div>
+      </nav>
+    </div>
   );
 }
 
