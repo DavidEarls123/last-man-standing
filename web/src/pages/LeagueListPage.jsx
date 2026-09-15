@@ -68,50 +68,58 @@ export default function LeagueListPage() {
           <Link
             key={league.id}
             to={`/leagues/${league.id}`}
-            style={{
-              textDecoration: 'none',
-              color: 'inherit',
-              '--brand': league.primaryColor,
-              '--brand-2': league.secondaryColor,
-            }}
+            className="league-card"
+            style={{ '--brand': league.primaryColor, '--brand-2': league.secondaryColor }}
           >
-            <Card>
-              <div className="spread">
-                <LeagueCrest league={league} className="logo-preview" size={44} />
-                <div className="grow">
-                  <h2>{league.name}</h2>
-                  <div className="small muted">
-                    {league.tagline || `Starts gameweek ${league.startGameweek}`} · {league.totalEntries} entrant
-                    {league.totalEntries === 1 ? '' : 's'}
-                  </div>
-                </div>
-                <div className="row-tight">
-                  {!league.launched && <span className="badge badge-warn">Draft</span>}
-                  {league.role === 'admin' && <span className="badge badge-admin">Admin</span>}
-                  {league.role === 'super_admin' && <span className="badge badge-admin">Platform</span>}
-                  {league.entry?.isWinner && <span className="badge badge-gold">Winner</span>}
-                  {league.entry && !league.entry.isWinner && (
-                    <span className={`badge ${league.entry.status === 'active' ? 'badge-in' : 'badge-out'}`}>
-                      {league.entry.status === 'active' ? 'In' : 'Out'}
-                    </span>
-                  )}
+            {/* The header is the league's own two colours and its crest, so the
+                card is a real preview of what is behind the door. */}
+            <div className="league-card-head">
+              <LeagueCrest league={league} className="league-crest" size={50} />
+              <div className="grow">
+                <h2 className="league-card-name">{league.name}</h2>
+                <div className="league-card-tag">
+                  {league.tagline || `Starts gameweek ${league.startGameweek}`}
                 </div>
               </div>
+              <div className="row-tight league-card-badges">
+                {!league.launched && <span className="badge badge-warn">Draft</span>}
+                {league.role === 'admin' && <span className="badge badge-admin">Admin</span>}
+                {league.role === 'super_admin' && <span className="badge badge-admin">Platform</span>}
+                {league.entry?.isWinner && <span className="badge badge-gold">Winner</span>}
+                {league.entry && !league.entry.isWinner && (
+                  <span className={`badge ${league.entry.status === 'active' ? 'badge-in' : 'badge-out'}`}>
+                    {league.entry.status === 'active' ? 'In' : 'Out'}
+                  </span>
+                )}
+              </div>
+            </div>
 
-              <div style={{ marginTop: 12 }}>
-                <Bar pct={survivalPct} />
-                <div className="spread tiny muted" style={{ marginTop: 6 }}>
-                  <span>{league.active} still standing</span>
-                  <span>
-                    {league.status === 'completed'
-                      ? 'Completed'
+            <div className="league-card-body">
+              <div className="league-card-stats">
+                <span><strong>{league.active}</strong> still standing</span>
+                <span className="dot-sep" aria-hidden="true">·</span>
+                <span><strong>{league.totalEntries}</strong> entrant{league.totalEntries === 1 ? '' : 's'}</span>
+                {league.entry?.status === 'eliminated' && league.entry.eliminatedRound && (
+                  <>
+                    <span className="dot-sep" aria-hidden="true">·</span>
+                    <span>you went out in round {league.entry.eliminatedRound}</span>
+                  </>
+                )}
+              </div>
+              <Bar pct={survivalPct} />
+              <div className="spread tiny muted">
+                <span>{Math.round(survivalPct)}% of the field left</span>
+                <span>
+                  {league.status === 'completed'
+                    ? 'Completed'
+                    : !league.launched
+                      ? 'Not launched yet'
                       : league.entryClosed
                         ? <>Round {league.nextOpenRound} in <Countdown deadline={league.nextDeadline} /></>
                         : <>Entries close in <Countdown deadline={league.entryDeadline} /></>}
-                  </span>
-                </div>
+                </span>
               </div>
-            </Card>
+            </div>
           </Link>
         );
       })}

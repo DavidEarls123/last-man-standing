@@ -103,61 +103,72 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 
 .app { min-height: 100%; display: flex; flex-direction: column; }
 
+/*
+ * The platform strip. Deliberately slim and dark: it names the company and the
+ * game on every page without competing with whichever league you are looking
+ * at. It never takes a league's colours — that is the point of it.
+ */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 25;
-  background: color-mix(in srgb, var(--paper) 86%, white);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
+  background: var(--pitch-deep);
+  color: color-mix(in srgb, var(--chalk) 88%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--chalk) 12%, transparent);
 }
 .topbar-inner {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 16px;
+  gap: 8px;
+  padding: 7px 16px;
   width: 100%;
   max-width: var(--page);
   margin: 0 auto;
 }
-.topbar button, .topbar .btn { white-space: nowrap; padding: 7px 12px; font-size: 0.84rem; }
+.topbar button, .topbar .btn {
+  white-space: nowrap;
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--chalk) 10%, transparent);
+  border-color: color-mix(in srgb, var(--chalk) 20%, transparent);
+  color: color-mix(in srgb, var(--chalk) 90%, transparent);
+  box-shadow: none;
+}
+.topbar button:hover, .topbar .btn:hover {
+  background: color-mix(in srgb, var(--chalk) 18%, transparent);
+  color: var(--chalk);
+}
+.topbar .btn.active { background: var(--floodlight); border-color: var(--floodlight); color: #14251c; }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;                 /* so a long wordmark shrinks instead of pushing */
   font-weight: 800;
   letter-spacing: -0.025em;
   text-decoration: none;
-  color: var(--ink);
+  color: inherit;
   white-space: nowrap;
 }
-.brand span:not(.brand-mark) { overflow: hidden; text-overflow: ellipsis; }
-.brand-mark { flex: none; }
 .topbar-inner > .btn, .topbar-inner > button { flex: none; }
-.brand-mark {
-  width: 32px; height: 32px;
-  display: grid; place-items: center;
-  border-radius: 10px;
-  background: var(--brand);
-  /* The shoe and ball are floodlight yellow on the platform's pitch green, and
-     the league's second colour once you are inside one. */
-  color: var(--brand-2);
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--brand) 35%, transparent);
-}
+/* Understated on the strip: the mark is the floodlight yellow, with no plate
+   behind it, so it reads as a signature rather than a badge. */
+.brand-mark { display: grid; place-items: center; flex: none; color: var(--floodlight); }
 .brand-mark svg { display: block; }
 
 /* The company sits above the game, quietly. */
-.brand-words { display: grid; line-height: 1.1; min-width: 0; }
+.brand-words { display: grid; line-height: 1.12; min-width: 0; }
 .brand-company {
-  font-size: 0.58rem;
+  /* Caps and letter-spacing make a line read wider than its size, so this is
+     set small and dim enough that the game's name still leads. */
+  font-size: 0.5rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.085em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: color-mix(in srgb, var(--chalk) 50%, transparent);
 }
-.brand-product { font-size: 0.97rem; font-weight: 800; letter-spacing: -0.025em; }
+.brand-product { font-size: 0.92rem; font-weight: 700; letter-spacing: -0.02em; }
 .brand-words > span { overflow: hidden; text-overflow: ellipsis; }
 .topbar-spacer { flex: 1; }
 
@@ -190,16 +201,17 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 
 @media (max-width: 430px) {
   h1 { font-size: 1.4rem; }
-  .brand span:not(.brand-mark) { font-size: 0.9rem; }
-  .topbar-inner { gap: 7px; padding: 10px 12px; }
-  .topbar button, .topbar .btn { padding: 7px 10px; font-size: 0.8rem; }
+  .brand-product { font-size: 0.86rem; }
+  .topbar-inner { gap: 7px; padding: 6px 12px; }
+  .topbar button, .topbar .btn { padding: 5px 10px; font-size: 0.76rem; }
   .content { padding: 14px 14px 104px; }
   .grid-auto { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
 
-/* On the narrowest phones the badge carries the branding on its own. */
+/* On the narrowest phones the company line gives way, but the game's name
+   stays: the platform is named on every page whatever the screen. */
 @media (max-width: 380px) {
-  .brand span:not(.brand-mark) { display: none; }
+  .brand-company { display: none; }
 }
 
 /* ----------------------------------------------------------------- cards -- */
@@ -258,6 +270,77 @@ a:hover .card { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   font-size: 26px;
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+
+/* ----------------------------------------------------------- league card -- */
+
+/*
+ * A card that previews the league behind it: its two colours across the head,
+ * its crest as the image, its title and tagline in the colours the admin
+ * chose. Open it and the same colours take over the page.
+ */
+.league-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.league-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+
+.league-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(120deg, var(--brand), var(--brand-2));
+  color: #fff;
+  /* White text over an admin's free choice of colour: a dark scrim underneath
+     keeps it readable whatever pair they picked. */
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.28);
+}
+.league-card-name {
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.league-card-tag {
+  font-size: 0.8rem;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.league-card-badges { flex: none; text-shadow: none; }
+.league-card-head .league-crest {
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+}
+
+.league-card-body { display: grid; gap: 8px; padding: 13px 16px 15px; }
+.league-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.league-card-stats strong { color: var(--ink); font-weight: 800; }
+.dot-sep { color: var(--ink-faint); }
+
+@media (max-width: 430px) {
+  /* Wrap the badges under rather than hiding them — whether you are still in
+     is the first thing you look for. */
+  .league-card-head { flex-wrap: wrap; }
+  .league-card-head > .grow { flex: 1 1 55%; }
+  .league-card-name { font-size: 1.02rem; }
 }
 
 /* ------------------------------------------------------------------ stat -- */

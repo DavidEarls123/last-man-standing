@@ -20,7 +20,7 @@ function TopBar() {
     <header className="topbar">
       <div className="topbar-inner">
         <NavLink to="/" className="brand">
-          <span className="brand-mark"><Logo size={21} hole="var(--brand)" /></span>
+          <span className="brand-mark"><Logo size={26} hole="var(--pitch-deep)" /></span>
           <span className="brand-words">
             <span className="brand-company">{BRAND.company}</span>
             <span className="brand-product">{BRAND.product}</span>
