@@ -216,7 +216,10 @@ harder to get into — and harder to lose. There are three ways in, in order of 
    clears the second factor so a lost authenticator can be re-enrolled, and forces a new
    passphrase. Generate a fresh set any time under **Platform → Security**.
 3. **Shell access to the server.** `npm run superadmin:reset` sets a new passphrase, and
-   `npm run superadmin:reset -- --clear-totp` also clears the second factor.
+   `npm run superadmin:reset -- --clear-totp` also clears the second factor. It leaves the
+   recovery codes alone on purpose — they are the other way in, and rotating them silently
+   would strand whoever holds the printout. Add `--new-codes` when the codes themselves are
+   what went wrong. The command says which of the three it changed, every time.
 
 There is deliberately **no email password reset for the super admin**. An email reset would
 make the whole platform only as strong as one inbox, and it is the easiest thing to phish.
