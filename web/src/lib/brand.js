@@ -18,7 +18,13 @@ export const BRAND = Object.freeze({
  * navigation changing shape.
  */
 export const GAMES = Object.freeze([
-  Object.freeze({ key: 'lms', name: 'Last One Standing', path: '/', live: true }),
+  Object.freeze({
+    key: 'lms',
+    name: 'Last One Standing',
+    path: '/',
+    live: true,
+    blurb: 'Pick a Premier League winner every week. Lose once and you are out.',
+  }),
 ]);
 
 /**

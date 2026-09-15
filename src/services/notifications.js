@@ -314,12 +314,17 @@ export function queueWinnerNotices(league, winnerEntryIds, round, reason) {
  * Queue a one-off message (password resets, admin announcements). Always sent,
  * even when routine competition notices are switched off.
  */
-export function queueDirect(user, { kind, subject, body, league = null, dedupeKey = null }) {
+/**
+ * `scheduledFor` is worth passing when one message goes to a group: it is what
+ * ties those rows together as a single send, and a per-recipient timestamp
+ * would split the batch the moment the loop crosses a millisecond.
+ */
+export function queueDirect(user, { kind, subject, body, league = null, dedupeKey = null, scheduledFor = null }) {
   return enqueue({
     user, league, kind,
     dedupeKey: dedupeKey ?? `${kind}:${user.id}:${Date.now()}`,
     subject, body,
-    scheduledFor: nowIso(),
+    scheduledFor: scheduledFor ?? nowIso(),
     settings: notificationSettings(),
     force: true,
   });

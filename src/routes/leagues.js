@@ -23,6 +23,7 @@ import { LEAGUE_ICONS, isLeagueIcon } from '../domain/leagueIcons.js';
 import { addClient } from '../services/live.js';
 import { verifyLeague } from '../services/verification.js';
 import { queueDirect } from '../services/notifications.js';
+import { leagueOutbox } from '../services/outbox.js';
 
 export const leaguesRouter = express.Router();
 
@@ -660,8 +661,19 @@ leaguesRouter.post('/:leagueId/members/:entryId/reinstate', requireLeagueAdmin, 
   res.json({ ok: true, entry: get('SELECT * FROM entries WHERE id = ?', entry.id) });
 }));
 
+/**
+ * Everything this league has sent, grouped, with the admin's own announcements
+ * marked apart from the ones the league sent by itself.
+ */
+leaguesRouter.get('/:leagueId/announcements', requireLeagueAdmin, wrap(async (req, res) => {
+  res.json({ batches: leagueOutbox(req.league.id) });
+}));
+
 /** League admins can message their players (e.g. a nudge before a deadline). */
 leaguesRouter.post('/:leagueId/announce', requireLeagueAdmin, wrap(async (req, res) => {
+  if (!req.league.launched_at) {
+    throw conflict('Launch the league before announcing anything — nobody has joined yet');
+  }
   const body = parse(
     z.object({ subject: z.string().trim().min(3).max(120), message: z.string().trim().min(3).max(2000) }),
     req.body,
@@ -670,6 +682,9 @@ leaguesRouter.post('/:leagueId/announce', requireLeagueAdmin, wrap(async (req, r
     `SELECT u.* FROM entries e JOIN users u ON u.id = e.user_id WHERE e.league_id = ?`,
     req.league.id,
   );
+  // One timestamp for the whole send, so the log shows one announcement rather
+  // than however many milliseconds the loop happened to span.
+  const sentAt = nowIso();
   let queued = 0;
   for (const user of users) {
     queued += queueDirect(user, {
@@ -677,7 +692,8 @@ leaguesRouter.post('/:leagueId/announce', requireLeagueAdmin, wrap(async (req, r
       league: req.league,
       subject: `${req.league.name}: ${body.subject}`,
       body: `${body.message}\n\n— ${req.user.display_name}`,
-      dedupeKey: `announce:${req.league.id}:${user.id}:${Date.now()}`,
+      dedupeKey: `announce:${req.league.id}:${user.id}:${sentAt}`,
+      scheduledFor: sentAt,
     });
   }
   audit(req.user.id, 'league.announce', 'league', req.league.id, { recipients: users.length });

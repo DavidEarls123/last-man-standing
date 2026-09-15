@@ -180,7 +180,10 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .gamebar-inner::-webkit-scrollbar { display: none; }
 .gamechip {
   flex: none;
-  padding: 5px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px 5px 10px;
   border-radius: 999px;
   font-size: 0.92rem;
   font-weight: 700;
@@ -195,6 +198,8 @@ h3 { font-size: 0.98rem; font-weight: 700; }
   border-color: var(--floodlight);
   color: #14251c;
 }
+.gamemark { display: inline-flex; flex: none; }
+.gamemark svg { display: block; }
 .gamebar-soon {
   font-size: 0.66rem;
   font-weight: 600;
@@ -910,6 +915,27 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
 .tally-seg.out { background: var(--chart-out); }
 .tally-seg.pending { background: var(--line-strong); }
 
+/* ------------------------------------------------------- announcements -- */
+
+.announce-log {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.announce-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.announce-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+/* The filter should not stretch across the card the way a tab strip does. */
+.announce-filter { flex: 0 1 auto; margin-left: auto; }
+.announce-filter button { flex: 0 1 auto; font-size: 0.78rem; padding: 5px 11px; }
+
 /* ---------------------------------------------------------------- outbox -- */
 
 .batch-head {
@@ -1000,6 +1026,40 @@ th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; colo
   background: color-mix(in srgb, var(--chalk) 12%, transparent);
   border-color: color-mix(in srgb, var(--chalk) 26%, transparent);
   color: var(--chalk);
+}
+
+/* The games the account covers, listed under the form. */
+.auth-games {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--chalk) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chalk) 14%, transparent);
+}
+.auth-games-head {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--chalk) 52%, transparent);
+}
+.auth-game { display: flex; align-items: center; gap: 12px; }
+.auth-game-mark {
+  width: 40px; height: 40px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 11px;
+  background: var(--pitch-deep);
+  color: var(--floodlight);
+}
+.auth-game-words { display: grid; gap: 1px; min-width: 0; }
+.auth-game-name { font-weight: 700; font-size: 0.95rem; color: var(--chalk); }
+.auth-game-blurb {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--chalk) 62%, transparent);
 }
 
 /* ---------------------------------------------------------- site footer -- */

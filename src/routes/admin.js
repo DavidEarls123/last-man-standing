@@ -8,6 +8,7 @@ import { hashPassword, randomCode } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { createLeague, leagueContext, leagueOverview } from '../services/leagues.js';
+import { groupNotifications } from '../services/outbox.js';
 import { isValidOpeningPicks } from '../domain/rules.js';
 import { availableTeamsForRound, entryPicks, submitPick } from '../services/picks.js';
 import { recomputeLeague, settleRound, settleAllLeagues } from '../services/settlement.js';
@@ -462,52 +463,15 @@ adminRouter.post('/notifications/run', wrap(async (req, res) => {
  * news, not sixteen; the individual messages are still there behind it.
  */
 adminRouter.get('/notifications', wrap(async (req, res) => {
-  const rows = all(
-    `SELECT n.*, u.display_name, l.name AS league_name
-     FROM notifications n
-     JOIN users u ON u.id = n.user_id
-     LEFT JOIN leagues l ON l.id = n.league_id
-     ORDER BY n.created_at DESC LIMIT 500`,
-  );
-
-  // A batch is one kind of message, about one league and round, sent in one go.
-  const roundOf = (row) => {
-    if (!row.meta) return null;
-    try { return JSON.parse(row.meta).round ?? null; } catch { return null; }
-  };
-
-  const batches = new Map();
-  for (const row of rows) {
-    const round = roundOf(row);
-    const key = [row.kind, row.league_id ?? '-', round ?? '-', row.scheduled_for].join('|');
-    if (!batches.has(key)) {
-      batches.set(key, {
-        key,
-        kind: row.kind,
-        leagueId: row.league_id ?? null,
-        leagueName: row.league_name ?? null,
-        round,
-        scheduledFor: row.scheduled_for,
-        subject: row.subject,
-        counts: { total: 0, queued: 0, sent: 0, failed: 0, email: 0, sms: 0 },
-        recipients: [],
-      });
-    }
-    const batch = batches.get(key);
-    batch.counts.total += 1;
-    batch.counts[row.status] = (batch.counts[row.status] ?? 0) + 1;
-    batch.counts[row.channel] = (batch.counts[row.channel] ?? 0) + 1;
-    batch.recipients.push({
-      id: row.id,
-      name: row.display_name,
-      channel: row.channel,
-      status: row.status,
-      subject: row.subject,
-      body: row.body,
-    });
-  }
-
-  res.json({ batches: [...batches.values()].slice(0, 60) });
+  res.json({
+    batches: groupNotifications(all(
+      `SELECT n.*, u.display_name, l.name AS league_name
+       FROM notifications n
+       JOIN users u ON u.id = n.user_id
+       LEFT JOIN leagues l ON l.id = n.league_id
+       ORDER BY n.created_at DESC LIMIT 500`,
+    )),
+  });
 }));
 
 // ------------------------------------------------------- recovery + audit ---

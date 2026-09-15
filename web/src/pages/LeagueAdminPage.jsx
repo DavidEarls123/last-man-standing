@@ -7,13 +7,13 @@ import EntryOverride from '../components/EntryOverride.jsx';
 import LeagueBranding from '../components/LeagueBranding.jsx';
 import SetupLock from '../components/SetupLock.jsx';
 import VerificationCard from '../components/VerificationCard.jsx';
+import Announcements from '../components/Announcements.jsx';
 
 export default function LeagueAdminPage() {
   const league = useLeague();
   const leagueId = league.leagueId;
   const { data, loading, error, reload } = useAsync(() => api.get(`/api/leagues/${leagueId}/members`), [leagueId]);
   const [form, setForm] = useState({ displayName: '', email: '', phone: '' });
-  const [announcement, setAnnouncement] = useState({ subject: '', message: '' });
   const [actionError, setActionError] = useState('');
   const [toast, setToast] = useState('');
   const [tempPassword, setTempPassword] = useState(null);
@@ -167,29 +167,7 @@ export default function LeagueAdminPage() {
         </p>
       </Card>
 
-      <Card title="Message everyone">
-        {league.league.smsEnabled === false && (
-          <Alert tone="info">
-            This league is set to email only — the platform admin controls whether it can send
-            texts.
-          </Alert>
-        )}
-        <form className="stack" onSubmit={run(async () => {
-          const result = await api.post(`/api/leagues/${leagueId}/announce`, announcement);
-          setAnnouncement({ subject: '', message: '' });
-          setToast(`Message queued to ${result.queued} recipient${result.queued === 1 ? '' : 's'}`);
-        })}>
-          <label className="field">
-            Subject
-            <input value={announcement.subject} onChange={(event) => setAnnouncement({ ...announcement, subject: event.target.value })} required />
-          </label>
-          <label className="field">
-            Message
-            <textarea value={announcement.message} onChange={(event) => setAnnouncement({ ...announcement, message: event.target.value })} required />
-          </label>
-          <button className="btn-ghost" type="submit">Send to all players</button>
-        </form>
-      </Card>
+      <Announcements leagueId={leagueId} league={league.league} setToast={setToast} />
 
 
       {league.league.role === 'super_admin' && (

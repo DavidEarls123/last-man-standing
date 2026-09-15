@@ -12,6 +12,7 @@ import SuperAdminPage from './pages/SuperAdminPage.jsx';
 import JoinPage from './pages/JoinPage.jsx';
 import { LeagueProvider, useLeague } from './league.jsx';
 import Logo from './components/Logo.jsx';
+import GameMark from './components/GameMark.jsx';
 import { BRAND, GAMES } from './lib/brand.js';
 
 /**
@@ -59,6 +60,11 @@ function TopBar() {
               className={`gamechip${game.key === activeGame.key ? ' selected' : ''}`}
               aria-current={game.key === activeGame.key ? 'page' : undefined}
             >
+              <GameMark
+                game={game.key}
+                size={19}
+                hole={game.key === activeGame.key ? 'var(--floodlight)' : 'var(--pitch)'}
+              />
               {game.name}
             </Link>
           ))}

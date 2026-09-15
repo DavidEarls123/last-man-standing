@@ -544,3 +544,43 @@ test('an anonymous league hides entrants from each other but not from its admin'
   assert.equal(asAdmin.body.anonymised, false);
   assert.ok(asAdmin.body.standings.every((row) => row.name), 'the admin still sees who is who');
 });
+
+test('a league admin can see what the league has said, theirs and its own', async () => {
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+
+  const sent = await superAdmin('POST', `/api/leagues/${league.id}/announce`, {
+    subject: 'Deadline moved to Friday', message: 'Kick off is earlier this week, get your picks in.',
+  });
+  assert.equal(sent.status, 200);
+  assert.ok(sent.body.queued > 0);
+
+  const log = await superAdmin('GET', `/api/leagues/${league.id}/announcements`);
+  assert.equal(log.status, 200);
+
+  // One line per batch, not one per recipient.
+  const mine = log.body.batches.filter((batch) => batch.manual);
+  assert.equal(mine.length, 1, 'the announcement is one entry however many people got it');
+  assert.equal(mine[0].label, 'Announcement');
+  assert.match(mine[0].subject, /Deadline moved to Friday/);
+  assert.equal(mine[0].counts.total, sent.body.queued);
+  assert.ok(mine[0].recipients.length > 1, 'the individual messages are still there behind it');
+
+  // Anything the league sent itself is marked apart from it.
+  assert.ok(log.body.batches.every((batch) => typeof batch.manual === 'boolean'));
+  assert.ok(log.body.batches.some((batch) => !batch.manual), 'automatic messages are logged too');
+
+  // Players cannot read the league's outbox.
+  assert.equal((await bob('GET', `/api/leagues/${league.id}/announcements`)).status, 403);
+});
+
+test('a draft league cannot announce to players it does not have', async () => {
+  const created = await superAdmin('POST', '/api/admin/leagues', {
+    name: 'Silent draft', seasonId: season.seasonId, adminEmail: 'alice@example.com',
+  });
+  const leagueId = created.body.league.id;
+  const tooEarly = await alice('POST', `/api/leagues/${leagueId}/announce`, {
+    subject: 'Anybody there', message: 'Hello to nobody at all.',
+  });
+  assert.equal(tooEarly.status, 409);
+  assert.match(tooEarly.body.error.message, /Launch the league/i);
+});

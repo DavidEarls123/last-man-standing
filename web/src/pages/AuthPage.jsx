@@ -4,7 +4,8 @@ import { useAuth } from '../auth.jsx';
 import { api } from '../api.js';
 import { Alert, Card } from '../components/ui.jsx';
 import Logo from '../components/Logo.jsx';
-import { BRAND } from '../lib/brand.js';
+import GameMark from '../components/GameMark.jsx';
+import { BRAND, GAMES } from '../lib/brand.js';
 
 const MODES = {
   signin: 'Sign in',
@@ -83,11 +84,11 @@ export default function AuthPage({ initialMode = 'signin' }) {
   return (
     <div className="auth-shell">
       <div className="auth-inner">
+        {/* You are signing in to the company, not to one of its games. */}
         <div className="auth-brand">
           <span className="auth-mark"><Logo size={38} hole="var(--pitch-deep)" /></span>
-          <span className="auth-title">{BRAND.product}</span>
-          <span className="auth-tagline">{BRAND.blurb}</span>
-          <span className="auth-company">From {BRAND.company}</span>
+          <span className="auth-title">{BRAND.company}</span>
+          <span className="auth-tagline">One account for every game we run.</span>
         </div>
 
       <div className="auth-card stack">
@@ -102,10 +103,10 @@ export default function AuthPage({ initialMode = 'signin' }) {
           <h1 style={{ marginBottom: 4 }}>{MODES[mode]}</h1>
           <p className="muted small" style={{ marginTop: 0 }}>
             {mode === 'register'
-              ? 'One account works across every league on the platform.'
+              ? 'One account, every game and every league you are invited to.'
               : mode === 'recovery'
                 ? 'Use one of the one-time recovery codes issued when the platform was set up.'
-                : 'Pick a winner every week. Lose once and you are out.'}
+                : 'Use the email address or mobile number you signed up with.'}
           </p>
 
           <form className="stack" onSubmit={onSubmit}>
@@ -178,6 +179,24 @@ export default function AuthPage({ initialMode = 'signin' }) {
           {mode !== 'register' && <button className="btn-ghost btn-sm" onClick={() => setMode('register')}>Create account</button>}
           {mode !== 'forgot' && <button className="btn-ghost btn-sm" onClick={() => setMode('forgot')}>Forgot password</button>}
           {mode !== 'recovery' && <button className="btn-ghost btn-sm" onClick={() => setMode('recovery')}>Recovery code</button>}
+        </div>
+
+        {/* What the account gets you. A second game is a second row. */}
+        <div className="auth-games">
+          <span className="auth-games-head">
+            {GAMES.length === 1 ? 'Your account covers' : 'Your account covers all of these'}
+          </span>
+          {GAMES.map((game) => (
+            <div className="auth-game" key={game.key}>
+              <span className="auth-game-mark">
+                <GameMark game={game.key} size={26} hole="var(--pitch-deep)" />
+              </span>
+              <span className="auth-game-words">
+                <span className="auth-game-name">{game.name}</span>
+                <span className="auth-game-blurb">{game.blurb}</span>
+              </span>
+            </div>
+          ))}
         </div>
       </div>
       </div>
