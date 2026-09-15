@@ -17,6 +17,8 @@ export const KIND_LABEL = Object.freeze({
   auto_pick: 'Club picked for them',
   welcome: 'Welcome',
   config_unlocked: 'Setup reopened',
+  change_requested: 'Change requested',
+  change_answered: 'Change request answered',
 });
 
 const roundOf = (row) => {

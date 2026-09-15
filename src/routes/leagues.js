@@ -24,6 +24,9 @@ import { addClient } from '../services/live.js';
 import { verifyLeague } from '../services/verification.js';
 import { queueDirect } from '../services/notifications.js';
 import { leagueOutbox } from '../services/outbox.js';
+import {
+  changeRequestsFor, requestChange, resolveOpenRequestsFor,
+} from '../services/changeRequests.js';
 
 export const leaguesRouter = express.Router();
 
@@ -580,6 +583,25 @@ leaguesRouter.post('/:leagueId/lock', requireLeagueAdmin, wrap(async (req, res) 
   res.json({ ok: true, lockedAt, launchedAt: updated.launched_at, joinCode: updated.join_code });
 }));
 
+/**
+ * The league admin's only route through a lock: ask. They cannot override it,
+ * and a request that vanished into an inbox is how an admin ends up wanting to,
+ * so it is recorded against the league as well as emailed.
+ */
+leaguesRouter.post('/:leagueId/change-request', requireLeagueAdmin, wrap(async (req, res) => {
+  const context = leagueContext(req.league);
+  if (!context.configLocked) {
+    throw badRequest('This league is not locked — you can make the change yourself');
+  }
+  const body = parse(z.object({ message: z.string().trim().min(10).max(1000) }), req.body);
+  const { request, notified } = requestChange({ league: req.league, user: req.user, message: body.message });
+  res.status(201).json({ request, notified });
+}));
+
+leaguesRouter.get('/:leagueId/change-requests', requireLeagueAdmin, wrap(async (req, res) => {
+  res.json({ requests: changeRequestsFor(req.league.id) });
+}));
+
 /** Reopen setup. Platform admin only — that is the point of the lock. */
 leaguesRouter.post('/:leagueId/unlock', requireLeagueAdmin, wrap(async (req, res) => {
   if (req.leagueRole !== 'super_admin') {
@@ -588,6 +610,8 @@ leaguesRouter.post('/:leagueId/unlock', requireLeagueAdmin, wrap(async (req, res
   const body = parse(z.object({ reason: z.string().trim().min(3).max(200) }), req.body);
   run('UPDATE leagues SET config_locked_at = NULL, config_locked_by = NULL WHERE id = ?', req.league.id);
   audit(req.user.id, 'league.config_unlocked', 'league', req.league.id, { reason: body.reason });
+  // Reopening the setup answers whatever the admin was waiting on.
+  resolveOpenRequestsFor(req.league.id, req.user, 'The setup has been reopened for you.');
 
   const admin = req.league.admin_user_id
     ? get('SELECT * FROM users WHERE id = ?', req.league.admin_user_id)

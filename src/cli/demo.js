@@ -1,4 +1,5 @@
 import { all, get, run } from '../db/index.js';
+import { config } from '../config.js';
 import { hashPassword } from '../lib/auth.js';
 import { nowIso } from '../lib/time.js';
 import { seedSeason } from '../db/seed.js';
@@ -43,8 +44,22 @@ function teamWon(roundInfo, teamId) {
     : fixture.away_score > fixture.home_score;
 }
 
-const season = seedSeason({ reset: Boolean(flag('reset', false)) });
-createLocalProvider().backfillFinished();
+/**
+ * Never overwrite a real season. Seeding would make the generated sample
+ * calendar current again, and backfilling would invent results for fixtures
+ * that have actually been played — silently, on top of live data.
+ */
+const current = get('SELECT * FROM seasons WHERE is_current = 1');
+const live = config.football.provider !== 'local';
+const season = live && current
+  ? { seasonId: current.id, seasonName: current.name }
+  : seedSeason({ reset: Boolean(flag('reset', false)) });
+
+if (live && current) {
+  console.log(`Using the existing ${current.name} season — real fixtures left alone.`);
+} else {
+  createLocalProvider().backfillFinished();
+}
 
 const admin = await ensureUser('League Admin', 0);
 const existingLeague = get('SELECT * FROM leagues WHERE name = ?', 'The Local Pub LMS');
@@ -55,6 +70,18 @@ const league = existingLeague ?? createLeague({
   adminUserId: admin.id,
   createdBy: admin.id,
 });
+
+// Launching is what turns a draft into a league: without it there is no join
+// code and no entrants, so a demo league that is not launched is not a demo.
+if (!league.launched_at) {
+  const now = nowIso();
+  run(
+    `UPDATE leagues SET launched_at = ?, launched_by = ?,
+            config_locked_at = COALESCE(config_locked_at, ?), config_locked_by = COALESCE(config_locked_by, ?)
+     WHERE id = ?`,
+    now, admin.id, now, admin.id, league.id,
+  );
+}
 
 // Give the demo league a look, so the theming is visible straight away.
 run(
@@ -108,7 +135,15 @@ if (refreshed.nextOpenRound) {
 }
 
 const survivors = get("SELECT COUNT(*) AS count FROM entries WHERE league_id = ? AND status = 'active'", league.id).count;
-console.log(`Demo league "${league.name}" ready — join code ${get('SELECT join_code FROM leagues WHERE id = ?', league.id).join_code}`);
+const superAdmin = get('SELECT email, phone FROM users WHERE is_super_admin = 1');
+const joinCode = get('SELECT join_code FROM leagues WHERE id = ?', league.id).join_code;
+
+console.log(`\nDemo league "${league.name}" ready on ${season.seasonName}.`);
 console.log(`  ${players.length} entrants, ${survivors} still standing, next round ${refreshed.nextOpenRound ?? 'n/a'}`);
-console.log(`  League admin: ${admin.email}`);
-console.log(`  Players: ${players[1].user.email} … (password for every demo account: ${PASSWORD})`);
+console.log(`  Join code: ${joinCode}`);
+console.log(`  Invite link: ${config.publicUrl}/join/${joinCode}`);
+console.log('\nSign in as each of the three to compare them:');
+console.log(`  Platform admin  ${superAdmin?.email || superAdmin?.phone || '(run npm run bootstrap)'}   — your own passphrase`);
+console.log(`  League admin    ${admin.email}   — ${PASSWORD}`);
+console.log(`  Player          ${players[1].user.email}   — ${PASSWORD}`);
+console.log('\nUse a separate browser window for each, or they will sign each other out.');

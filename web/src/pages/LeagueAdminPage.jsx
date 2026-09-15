@@ -8,6 +8,7 @@ import LeagueBranding from '../components/LeagueBranding.jsx';
 import SetupLock from '../components/SetupLock.jsx';
 import VerificationCard from '../components/VerificationCard.jsx';
 import Announcements from '../components/Announcements.jsx';
+import ChangeRequest from '../components/ChangeRequest.jsx';
 
 export default function LeagueAdminPage() {
   const league = useLeague();
@@ -17,6 +18,7 @@ export default function LeagueAdminPage() {
   const [actionError, setActionError] = useState('');
   const [toast, setToast] = useState('');
   const [tempPassword, setTempPassword] = useState(null);
+  const [section, setSection] = useState(null);
 
   const run = (action) => async (event) => {
     event?.preventDefault();
@@ -36,27 +38,69 @@ export default function LeagueAdminPage() {
   // The super admin can still add people after the deadline; a league admin cannot.
   const entriesClosed = league.league.entryClosed && league.league.role !== 'super_admin';
 
+  // Before launch there is one job — finish the setup — so there is nothing to
+  // navigate. After it, setup is the part you rarely touch and the day to day
+  // work is players and announcements, so each gets its own sub-heading.
+  const launched = Boolean(league.league.launched);
+  const SECTIONS = launched
+    ? [['players', 'Players'], ['announce', 'Announcements'], ['setup', 'Setup']]
+    : [['setup', 'Setup']];
+  const current = SECTIONS.some(([key]) => key === section)
+    ? section
+    : (launched ? 'players' : 'setup');
+  const showing = (key) => current === key;
+
   return (
     <div className="stack">
       <div>
         <h1>Manage {league.league.name}</h1>
         <p className="muted small" style={{ marginTop: 4 }}>
-          Set the look, add players, share the join link and keep the league tidy.
+          {launched
+            ? 'Invite players, message the league and keep it tidy.'
+            : 'Set the look and the rules, then launch. Nobody can join until you do.'}
         </p>
       </div>
 
+      {launched && (
+        <div className="segmented subnav">
+          {SECTIONS.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={showing(key) ? 'active' : ''}
+              aria-current={showing(key) ? 'page' : undefined}
+              onClick={() => setSection(key)}
+            >{label}</button>
+          ))}
+        </div>
+      )}
+
       <Alert tone="error">{actionError}</Alert>
 
-      <LeagueBranding league={league.league} onSaved={() => league.reload()} setToast={setToast} />
+      {showing('announce') && (
+        <Announcements leagueId={leagueId} league={league.league} setToast={setToast} />
+      )}
 
-      <SetupLock
-        league={league.league}
-        onChange={async () => { await league.reload(); reload(); }}
-        setToast={setToast}
-      />
+      {showing('setup') && (
+        <>
+          <LeagueBranding league={league.league} onSaved={() => league.reload()} setToast={setToast} />
 
-      <VerificationCard leagueId={leagueId} setToast={setToast} />
+          <SetupLock
+            league={league.league}
+            onChange={async () => { await league.reload(); reload(); }}
+            setToast={setToast}
+          />
 
+          {league.league.configLocked && league.league.role === 'admin' && (
+            <ChangeRequest leagueId={leagueId} league={league.league} setToast={setToast} />
+          )}
+
+          <VerificationCard leagueId={leagueId} setToast={setToast} />
+        </>
+      )}
+
+      {showing('players') && (
+        <>
       <Card title="Invite players">
         {!data.launched ? (
           <Alert tone="info">
@@ -167,11 +211,10 @@ export default function LeagueAdminPage() {
         </p>
       </Card>
 
-      <Announcements leagueId={leagueId} league={league.league} setToast={setToast} />
-
-
       {league.league.role === 'super_admin' && (
         <EntryOverride leagueId={leagueId} onChange={() => { reload(); league.reload(); }} />
+      )}
+        </>
       )}
 
       <Toast message={toast} onDone={() => setToast('')} />

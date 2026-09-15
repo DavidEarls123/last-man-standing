@@ -49,10 +49,23 @@ export default function SuperAdminPage() {
   );
 }
 
-function OverviewSection() {
-  const { data, loading, error } = useAsync(() => api.get('/api/admin/overview'));
+function OverviewSection({ setToast, setError }) {
+  const { data, loading, error, reload } = useAsync(() => api.get('/api/admin/overview'));
   if (loading) return <Spinner />;
   if (error) return <Alert tone="error">{error}</Alert>;
+
+  const answer = (request, status) => async () => {
+    const outcome = window.prompt(status === 'resolved'
+      ? 'What did you do? (optional — the admin is emailed this)'
+      : 'Why not? (optional — the admin is emailed this)') ?? '';
+    try {
+      await api.post(`/api/admin/change-requests/${request.id}`, { status, outcome });
+      setToast?.(`${request.leagueName}: request ${status}`);
+      reload();
+    } catch (answerError) {
+      setError?.(answerError.message);
+    }
+  };
 
   return (
     <div className="stack">
@@ -66,6 +79,39 @@ function OverviewSection() {
           <Stat value={data.counts.failedNotifications} label="Failed msgs" tone={data.counts.failedNotifications ? 'danger' : undefined} />
         </div>
       </Card>
+
+      {/* A locked admin cannot go round the lock, so an unanswered request is a
+          blocked league. It sits above everything else until it is dealt with. */}
+      {data.changeRequests?.length > 0 && (
+        <Card title={`Change requests (${data.changeRequests.length})`}>
+          <Alert tone="warn">
+            These league admins cannot change their own settings. Until you answer, they are stuck.
+          </Alert>
+          <div className="list">
+            {data.changeRequests.map((request) => (
+              <div key={request.id} className="list-item" style={{ alignItems: 'flex-start' }}>
+                <div className="grow">
+                  <div className="strong">{request.leagueName}</div>
+                  <div className="small" style={{ marginTop: 2 }}>{request.message}</div>
+                  <div className="tiny dim">
+                    {request.requestedByName} · {formatShort(request.createdAt)}
+                  </div>
+                </div>
+                <span className="row-tight">
+                  <Link className="btn-ghost btn-sm" to={`/leagues/${request.leagueId}/admin`}>Open</Link>
+                  <button className="btn-primary btn-sm" type="button" onClick={answer(request, 'resolved')}>Done</button>
+                  <button className="btn-ghost btn-sm" type="button" onClick={answer(request, 'declined')}>Decline</button>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="tiny dim" style={{ marginBottom: 0, marginTop: 10 }}>
+            <strong>Done</strong> and <strong>Decline</strong> both email the admin back. To let them
+            edit it themselves instead, open the league and use <strong>Reopen setup</strong> — that
+            answers the request too.
+          </p>
+        </Card>
+      )}
 
       <Card title="Leagues">
         <div className="table-wrap">

@@ -193,3 +193,19 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+
+-- A launched league's settings are frozen to its own admin. When something
+-- genuinely has to change they ask here, and the platform admin sees it
+-- alongside the email rather than having to remember an inbox.
+CREATE TABLE IF NOT EXISTS change_requests (
+  id           INTEGER PRIMARY KEY,
+  league_id    INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+  requested_by INTEGER NOT NULL REFERENCES users(id),
+  message      TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'open',   -- open | resolved | declined
+  outcome      TEXT,
+  resolved_by  INTEGER REFERENCES users(id),
+  resolved_at  TEXT,
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_change_requests_league ON change_requests(league_id, status);

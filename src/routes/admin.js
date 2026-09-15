@@ -21,6 +21,7 @@ import { createLocalProvider } from '../services/football/local.js';
 import { broadcastLive } from '../services/live.js';
 import { verifyAllLeagues } from '../services/verification.js';
 import { publicUser } from './auth.js';
+import { openChangeRequests, resolveChangeRequest } from '../services/changeRequests.js';
 
 export const adminRouter = express.Router();
 adminRouter.use(requireSuperAdmin);
@@ -33,7 +34,11 @@ adminRouter.get('/overview', wrap(async (req, res) => {
     entries: get('SELECT COUNT(*) AS count FROM entries').count,
     queuedNotifications: get("SELECT COUNT(*) AS count FROM notifications WHERE status = 'queued'").count,
     failedNotifications: get("SELECT COUNT(*) AS count FROM notifications WHERE status = 'failed'").count,
+    openChangeRequests: get("SELECT COUNT(*) AS count FROM change_requests WHERE status = 'open'").count,
   };
+  // A locked league admin has no way round the lock, so an unanswered request
+  // is a blocked league. It belongs on the first screen, not in an inbox.
+  const changeRequests = openChangeRequests();
   const leagues = all('SELECT * FROM leagues ORDER BY created_at DESC').map((league) => {
     const context = leagueContext(league);
     const overview = leagueOverview(league);
@@ -54,7 +59,20 @@ adminRouter.get('/overview', wrap(async (req, res) => {
       smsEnabled: Boolean(league.sms_enabled),
     };
   });
-  res.json({ counts, leagues, settings: notificationSettings() });
+  res.json({ counts, leagues, changeRequests, settings: notificationSettings() });
+}));
+
+/** Answer a league admin's request: 'resolved' if it was done, 'declined' if not. */
+adminRouter.post('/change-requests/:id', wrap(async (req, res) => {
+  const body = parse(z.object({
+    status: z.enum(['resolved', 'declined']).default('resolved'),
+    outcome: z.string().trim().max(500).optional(),
+  }), req.body);
+  const request = resolveChangeRequest({
+    id: Number(req.params.id), actor: req.user, status: body.status, outcome: body.outcome ?? null,
+  });
+  if (!request) throw notFound('No open request with that id');
+  res.json({ request });
 }));
 
 // ------------------------------------------------------------------- users --

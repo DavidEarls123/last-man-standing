@@ -499,6 +499,19 @@ input:focus, select:focus, textarea:focus {
   outline-offset: 0;
   border-color: var(--brand);
 }
+/* A locked league's settings are disabled in the markup, so they must look it.
+   Left looking ordinary, the form reads as editable and the admin discovers the
+   lock only when nothing saves. */
+input:disabled, select:disabled, textarea:disabled {
+  background: var(--sunken);
+  color: var(--ink-soft);
+  border-color: var(--line);
+  cursor: not-allowed;
+  -webkit-text-fill-color: var(--ink-soft);  /* Safari ignores `color` here */
+  opacity: 1;                                /* ...and dims it again otherwise */
+}
+input[type="color"]:disabled { filter: saturate(0.45) opacity(0.6); }
+
 textarea { min-height: 92px; resize: vertical; }
 input[type="color"] { padding: 3px; height: 42px; cursor: pointer; }
 input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
@@ -740,6 +753,12 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
   color: var(--ink);
   box-shadow: 0 1px 3px rgba(19, 26, 43, 0.12);
 }
+
+/* Sub-headings inside Manage. Roomier than a filter chip row, because these
+   are navigation rather than a toggle and sit directly under the page title.
+   Not sticky: the platform and league bars are already pinned up there. */
+.subnav button { padding: 9px 16px; font-size: 0.9rem; }
+.subnav button.active { color: var(--brand); }
 
 /* ----------------------------------------------------------- round strip -- */
 
