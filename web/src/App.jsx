@@ -10,7 +10,7 @@ import LeagueAdminPage from './pages/LeagueAdminPage.jsx';
 import AccountPage from './pages/AccountPage.jsx';
 import SuperAdminPage from './pages/SuperAdminPage.jsx';
 import JoinPage from './pages/JoinPage.jsx';
-import { LeagueProvider, useLeague } from './league.jsx';
+import { ActiveLeagueProvider, LeagueProvider, useActiveLeague, useLeague } from './league.jsx';
 import Logo from './components/Logo.jsx';
 import GameMark from './components/GameMark.jsx';
 import { BRAND, GAMES } from './lib/brand.js';
@@ -27,10 +27,15 @@ function TopBar() {
   const { user, signOut } = useAuth();
   const platform = usePlatform();
   const { pathname } = useLocation();
+  const { active } = useActiveLeague();
   // Every route belongs to a game. A second game would own its own path prefix;
   // until then everything is Last One Standing, league pages included.
   const activeGame = GAMES.find((game) => game.path !== '/' && pathname.startsWith(game.path))
     ?? GAMES[0];
+  // Inside a league the game bar stops being a label and becomes the way out:
+  // the chip is the game's home — your leagues — and the league you are in
+  // trails after it, so the page says where you are and how to leave.
+  const insideLeague = Boolean(active) && pathname.startsWith('/leagues/');
 
   return (
     <div className="platformbars">
@@ -57,22 +62,33 @@ function TopBar() {
 
       <nav className="gamebar" aria-label="Games">
         <div className="gamebar-inner">
-          {GAMES.map((game) => (
-            <Link
-              key={game.key}
-              to={game.path}
-              className={`gamechip${game.key === activeGame.key ? ' selected' : ''}`}
-              aria-current={game.key === activeGame.key ? 'page' : undefined}
-            >
-              <GameMark
-                game={game.key}
-                size={19}
-                hole={game.key === activeGame.key ? 'var(--floodlight)' : 'var(--pitch)'}
-              />
-              {game.name}
-            </Link>
-          ))}
-          {GAMES.length === 1 && <span className="gamebar-soon">More games coming</span>}
+          {GAMES.map((game) => {
+            const here = game.key === activeGame.key;
+            // Selected means "you are on this game's home page". Inside a
+            // league you are a level below it, so the chip is a way back.
+            const selected = here && !insideLeague;
+            return (
+              <Link
+                key={game.key}
+                to={game.path}
+                className={`gamechip${selected ? ' selected' : ''}${here && insideLeague ? ' gamechip-back' : ''}`}
+                aria-current={selected ? 'page' : undefined}
+                title={here && insideLeague ? `Back to ${game.name} — all your leagues` : undefined}
+              >
+                {here && insideLeague && <span className="gamechip-arrow" aria-hidden="true">‹</span>}
+                <GameMark game={game.key} size={19} hole={selected ? 'var(--floodlight)' : 'var(--pitch)'} />
+                {game.name}
+              </Link>
+            );
+          })}
+          {insideLeague ? (
+            <span className="gamebar-crumb">
+              <span className="gamebar-sep" aria-hidden="true">›</span>
+              <span className="gamebar-here">{active.name}</span>
+            </span>
+          ) : (
+            GAMES.length === 1 && <span className="gamebar-soon">More games coming</span>
+          )}
         </div>
       </nav>
     </div>
@@ -173,6 +189,7 @@ export default function App() {
   }
 
   return (
+    <ActiveLeagueProvider>
     <div className="app">
       <TopBar />
       <Routes>
@@ -185,5 +202,6 @@ export default function App() {
       </Routes>
       <SiteFooter />
     </div>
+    </ActiveLeagueProvider>
   );
 }

@@ -211,6 +211,41 @@ h3 { font-size: 0.98rem; font-weight: 700; }
   white-space: nowrap;
 }
 
+/* Inside a league the chip is no longer a label for where you are — it is the
+   way back up to the game's own home, with the league trailing after it. It is
+   outlined rather than filled, because filled means "you are here". */
+.gamechip-back {
+  color: var(--chalk);
+  border-color: color-mix(in srgb, var(--chalk) 32%, transparent);
+  padding-left: 7px;
+}
+.gamechip-back:hover {
+  background: color-mix(in srgb, var(--chalk) 12%, transparent);
+  border-color: color-mix(in srgb, var(--chalk) 55%, transparent);
+}
+.gamechip-arrow {
+  font-size: 1.35rem;
+  line-height: 1;
+  margin-right: -3px;
+  /* Nudged up: the glyph sits low in its box next to the mark. */
+  transform: translateY(-2px);
+}
+.gamebar-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.gamebar-sep { color: color-mix(in srgb, var(--chalk) 38%, transparent); }
+.gamebar-here {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--chalk) 78%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .topbar-spacer { flex: 1; }
 
 .content {
@@ -255,6 +290,9 @@ h3 { font-size: 0.98rem; font-weight: 700; }
    stays: the platform is named on every page whatever the screen. */
 @media (max-width: 380px) {
   .brand-company { display: none; }
+  /* The league's name is the page heading right below; at this width the way
+     back out is worth more than repeating it. */
+  .gamebar-crumb { display: none; }
 }
 
 /* ----------------------------------------------------------------- cards -- */
