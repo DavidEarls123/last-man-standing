@@ -14,6 +14,7 @@ import { LeagueProvider, useLeague } from './league.jsx';
 import Logo from './components/Logo.jsx';
 import GameMark from './components/GameMark.jsx';
 import { BRAND, GAMES } from './lib/brand.js';
+import { usePlatform } from './platform.jsx';
 
 /**
  * Three levels, top to bottom: the company, then the game, then the league.
@@ -24,6 +25,7 @@ import { BRAND, GAMES } from './lib/brand.js';
  */
 function TopBar() {
   const { user, signOut } = useAuth();
+  const platform = usePlatform();
   const { pathname } = useLocation();
   // Every route belongs to a game. A second game would own its own path prefix;
   // until then everything is Last One Standing, league pages included.
@@ -35,8 +37,10 @@ function TopBar() {
       <header className="companybar">
         <div className="companybar-inner">
           <NavLink to="/" className="brand">
-            <span className="brand-mark"><Logo size={30} hole="var(--pitch-deep)" /></span>
-            <span className="brand-company">{BRAND.company}</span>
+            <span className={`brand-mark mark-${platform.mark}`}>
+              <Logo size={30} hole="var(--pitch-deep)" variant={platform.mark} />
+            </span>
+            <span className="brand-company">{platform.company}</span>
           </NavLink>
           <div className="topbar-spacer" />
           {user && (
@@ -140,10 +144,11 @@ function LeagueShell() {
 }
 
 function SiteFooter() {
+  const platform = usePlatform();
   return (
     <footer className="sitefoot">
       <span><strong>{BRAND.product}</strong> — {BRAND.blurb}</span>
-      <span>From {BRAND.company}</span>
+      <span>From {platform.company}</span>
     </footer>
   );
 }

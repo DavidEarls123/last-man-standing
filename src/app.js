@@ -3,6 +3,7 @@ import path from 'node:path';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import { config } from './config.js';
+import { platformBranding } from './services/branding.js';
 import { attachUser, requireSameOrigin } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
 import { leaguesRouter } from './routes/leagues.js';
@@ -25,6 +26,10 @@ export function createApp() {
   app.use(attachUser);
 
   app.get('/api/health', (req, res) => res.json({ ok: true, provider: config.football.provider }));
+
+  // Public: the sign-in screen needs the platform's name and mark before
+  // anybody has signed in.
+  app.get('/api/platform', (req, res) => res.json({ branding: platformBranding() }));
 
   app.use('/api', requireSameOrigin);
   app.use('/api/auth', authRouter);

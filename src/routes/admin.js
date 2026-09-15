@@ -9,6 +9,9 @@ import { nowIso } from '../lib/time.js';
 import { requireSuperAdmin } from '../middleware/auth.js';
 import { createLeague, leagueContext, leagueOverview } from '../services/leagues.js';
 import { groupNotifications } from '../services/outbox.js';
+import {
+  BRANDING_DEFAULTS, MARKS, platformBranding, resetPlatformBranding, setPlatformBranding,
+} from '../services/branding.js';
 import { isValidOpeningPicks } from '../domain/rules.js';
 import { availableTeamsForRound, entryPicks, submitPick } from '../services/picks.js';
 import { recomputeLeague, settleRound, settleAllLeagues } from '../services/settlement.js';
@@ -133,6 +136,31 @@ adminRouter.patch('/users/:userId', wrap(async (req, res) => {
   );
   audit(req.user.id, 'admin.user_updated', 'user', user.id, { ...body, resetPassword: Boolean(body.resetPassword) });
   res.json({ user: publicUser(get('SELECT * FROM users WHERE id = ?', user.id)), temporaryPassword });
+}));
+
+// ---------------------------------------------------------------- branding --
+
+/**
+ * Rename the platform for a trial and put it back afterwards. Only the name and
+ * the mark move; leagues, entries and results are untouched either way.
+ */
+adminRouter.get('/branding', wrap(async (req, res) => {
+  res.json({ branding: platformBranding(), marks: MARKS, defaults: BRANDING_DEFAULTS });
+}));
+
+adminRouter.put('/branding', wrap(async (req, res) => {
+  const body = parse(
+    z.object({
+      company: z.string().trim().min(2).max(60),
+      mark: z.enum(MARKS.map((mark) => mark.key)),
+    }),
+    req.body,
+  );
+  res.json({ branding: setPlatformBranding(body, req.user.id) });
+}));
+
+adminRouter.delete('/branding', wrap(async (req, res) => {
+  res.json({ branding: resetPlatformBranding(req.user.id) });
 }));
 
 // ----------------------------------------------------------------- leagues --

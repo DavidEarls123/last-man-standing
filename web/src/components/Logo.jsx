@@ -1,22 +1,42 @@
 /**
- * The Last One Standing mark: a football sitting in the mouth of a horseshoe.
+ * The platform mark. Two drawings behind one component, because the super admin
+ * can run the platform under another name for a trial and the horseshoe is Off
+ * The Bridle's own.
  *
- * Drawn geometrically rather than illustrated, so it still reads at 20px in a
- * browser tab. The shoe is a stroke in `currentColor`; the ball is a solid disc
- * with its panel knocked out in `hole`, which should match whatever is behind
- * the mark.
+ * Both are `currentColor` on `hole`, so whatever is around them decides the two
+ * colours — floodlight-on-pitch in the bars, white-on-green under a club name.
  */
-export default function Logo({ size = 32, hole = 'var(--brand)', title, ...rest }) {
+export default function Logo({ size = 32, hole = 'var(--brand)', variant = 'horseshoe', title, ...rest }) {
+  const shared = {
+    width: size,
+    height: size,
+    viewBox: '0 0 64 64',
+    role: title ? 'img' : 'presentation',
+    'aria-label': title,
+    'aria-hidden': title ? undefined : 'true',
+    ...rest,
+  };
+
+  if (variant === 'ball') {
+    return (
+      <svg {...shared}>
+        <circle cx="32" cy="32" r="25" fill="currentColor" />
+        {/* Centre panel and five seams: enough football to read at 20px, and
+            little enough not to turn to mud there. */}
+        <polygon points="32,17.5 43.8,26.1 39.3,40 24.7,40 20.2,26.1" fill={hole} />
+        <path
+          d="M32 17.5 V8 M43.8 26.1 L52.8 19.2 M39.3 40 L44.8 51.8 M24.7 40 L19.2 51.8 M20.2 26.1 L11.2 19.2"
+          stroke={hole}
+          strokeWidth="4.5"
+          strokeLinecap="round"
+          fill="none"
+        />
+      </svg>
+    );
+  }
+
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      role={title ? 'img' : 'presentation'}
-      aria-label={title}
-      aria-hidden={title ? undefined : 'true'}
-      {...rest}
-    >
+    <svg {...shared}>
       {/* Ends up, the way you are meant to hang one, so the luck stays in it —
           which also makes a cup for the ball to sit in. */}
       <path

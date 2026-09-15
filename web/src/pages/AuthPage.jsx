@@ -6,6 +6,7 @@ import { Alert, Card } from '../components/ui.jsx';
 import Logo from '../components/Logo.jsx';
 import GameMark from '../components/GameMark.jsx';
 import { BRAND, GAMES } from '../lib/brand.js';
+import { usePlatform } from '../platform.jsx';
 
 const MODES = {
   signin: 'Sign in',
@@ -20,6 +21,7 @@ export default function AuthPage({ initialMode = 'signin' }) {
   const [params] = useSearchParams();
   const resetToken = params.get('token');
   const { signIn, register } = useAuth();
+  const platform = usePlatform();
 
   const [mode, setMode] = useState(resetToken ? 'reset' : initialMode);
   const [form, setForm] = useState({
@@ -87,8 +89,10 @@ export default function AuthPage({ initialMode = 'signin' }) {
         {/* Company, then the game under it, the same order as the bars inside.
             You are signing in to the company; the games are what it runs. */}
         <div className="auth-brand">
-          <span className="auth-mark"><Logo size={38} hole="var(--pitch-deep)" /></span>
-          <span className="auth-title">{BRAND.company}</span>
+          <span className={`auth-mark mark-${platform.mark}`}>
+            <Logo size={38} hole="var(--pitch-deep)" variant={platform.mark} />
+          </span>
+          <span className="auth-title">{platform.company}</span>
           <div className="auth-games">
             {GAMES.map((game) => (
               <span className="auth-game" key={game.key}>

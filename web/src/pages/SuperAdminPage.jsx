@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { Alert, Card, Empty, Spinner, Stat, Toast, useAsync } from '../components/ui.jsx';
 import { formatShort } from '../lib/format.js';
+import Logo from '../components/Logo.jsx';
+import { usePlatform } from '../platform.jsx';
 
-const SECTIONS = ['Overview', 'Leagues', 'People', 'Results', 'Checks', 'Notifications', 'Security', 'Audit'];
+const SECTIONS = ['Overview', 'Leagues', 'People', 'Results', 'Checks', 'Notifications', 'Branding', 'Security', 'Audit'];
 
 export default function SuperAdminPage() {
   const [section, setSection] = useState('Overview');
@@ -38,6 +40,7 @@ export default function SuperAdminPage() {
       {section === 'Results' && <ResultsSection {...shared} />}
       {section === 'Checks' && <ChecksSection {...shared} />}
       {section === 'Notifications' && <NotificationsSection {...shared} />}
+      {section === 'Branding' && <BrandingSection {...shared} />}
       {section === 'Security' && <SecuritySection {...shared} />}
       {section === 'Audit' && <AuditSection />}
 
@@ -702,6 +705,125 @@ function OutboxCard() {
         })}
       </div>
     </Card>
+  );
+}
+
+/**
+ * Run the platform under someone else's name for a trial, then put it back.
+ *
+ * Only the name and the mark move. Leagues, entrants, picks and results are
+ * untouched either way, so reverting loses nothing anybody has done.
+ */
+function BrandingSection({ setToast, setError }) {
+  const platform = usePlatform();
+  const { data, loading, reload } = useAsync(() => api.get('/api/admin/branding'));
+  const [form, setForm] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (data && !form) setForm({ company: data.branding.company, mark: data.branding.mark });
+  }, [data, form]);
+
+  if (loading || !form) return <Spinner />;
+
+  const act = (action) => async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const { branding } = await action();
+      setForm({ company: branding.company, mark: branding.mark });
+      await platform.reload();
+      reload();
+    } catch (actionError) {
+      setError(actionError.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const live = data.branding;
+
+  return (
+    <div className="stack">
+      <Card title="Platform name and mark">
+        {live.isDefault ? (
+          <Alert tone="ok">
+            Running as <strong>{data.defaults.company}</strong> with its own mark — the real thing.
+          </Alert>
+        ) : (
+          <Alert tone="warn">
+            Running as <strong>{live.company}</strong>. Everyone who signs in sees this name, not
+            {' '}{data.defaults.company}. Put it back with the button below whenever you want —
+            nothing about the leagues depends on it.
+          </Alert>
+        )}
+
+        <form className="stack" onSubmit={(event) => {
+          event.preventDefault();
+          act(async () => {
+            const result = await api.put('/api/admin/branding', form);
+            setToast(`Platform is now "${result.branding.company}"`);
+            return result;
+          })();
+        }}>
+          <label className="field">
+            Name shown across the platform
+            <input
+              id="branding-company"
+              value={form.company}
+              onChange={(event) => setForm({ ...form, company: event.target.value })}
+              maxLength={60}
+              required
+            />
+            <span className="tiny dim">
+              The top bar, the sign-in screen and the footer. Game and league names are unaffected.
+            </span>
+          </label>
+
+          <div className="field">
+            Mark
+            <div className="mark-picker">
+              {data.marks.map((mark) => (
+                <button
+                  key={mark.key}
+                  type="button"
+                  className={`mark-choice${form.mark === mark.key ? ' selected' : ''}`}
+                  aria-pressed={form.mark === mark.key}
+                  onClick={() => setForm({ ...form, mark: mark.key })}
+                >
+                  <span className={`mark-plate mark-${mark.key}`}>
+                    <Logo size={30} hole="var(--pitch-deep)" variant={mark.key} />
+                  </span>
+                  <span className="mark-words">
+                    <span className="strong small">{mark.label}</span>
+                    <span className="tiny dim">{mark.note}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="row">
+            <button className="btn-primary grow" type="submit" disabled={busy}>
+              {busy ? 'Saving…' : 'Apply to the whole platform'}
+            </button>
+            {!live.isDefault && (
+              <button className="btn-ghost" type="button" disabled={busy} onClick={act(async () => {
+                const result = await api.del('/api/admin/branding');
+                setToast(`Back to ${result.branding.company}`);
+                return result;
+              })}>Put it back</button>
+            )}
+          </div>
+        </form>
+
+        <p className="tiny dim" style={{ marginBottom: 0 }}>
+          This is a display setting and nothing more. It is recorded in the audit log each time it
+          changes, and it does not touch a single league, entry, pick or result — so a trial under
+          another name can be reverted with nothing lost.
+        </p>
+      </Card>
+    </div>
   );
 }
 

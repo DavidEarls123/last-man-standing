@@ -584,3 +584,45 @@ test('a draft league cannot announce to players it does not have', async () => {
   assert.equal(tooEarly.status, 409);
   assert.match(tooEarly.body.error.message, /Launch the league/i);
 });
+
+test('the platform can run under another name for a trial, and be put back', async () => {
+  const before = await fetch(`${base}/api/platform`).then((response) => response.json());
+  assert.equal(before.branding.company, 'Off The Bridle Sports');
+  assert.equal(before.branding.mark, 'horseshoe');
+  assert.equal(before.branding.isDefault, true);
+
+  // A club takes it for a test run.
+  const applied = await superAdmin('PUT', '/api/admin/branding', {
+    company: 'Killimordaly GAA', mark: 'ball',
+  });
+  assert.equal(applied.status, 200);
+  assert.equal(applied.body.branding.company, 'Killimordaly GAA');
+  assert.equal(applied.body.branding.isDefault, false);
+
+  // Signed out, the sign-in screen sees it too.
+  const publicView = await fetch(`${base}/api/platform`).then((response) => response.json());
+  assert.equal(publicView.branding.company, 'Killimordaly GAA');
+  assert.equal(publicView.branding.mark, 'ball');
+
+  // Nothing about the competition moved.
+  const league = get('SELECT * FROM leagues WHERE name = ?', 'The Bell Inn Survivor Cup');
+  const home = await alice('GET', `/api/leagues/${league.id}/home`);
+  assert.equal(home.status, 200);
+  assert.equal(home.body.league.name, 'The Bell Inn Survivor Cup');
+  assert.ok(home.body.standings.length > 0, 'entrants are untouched');
+
+  // Only the platform admin may change it.
+  assert.equal((await alice('PUT', '/api/admin/branding', { company: 'Alice FC', mark: 'ball' })).status, 403);
+  assert.equal((await alice('DELETE', '/api/admin/branding')).status, 403);
+  // And only to a mark that exists.
+  assert.equal((await superAdmin('PUT', '/api/admin/branding', { company: 'X Club', mark: 'llama' })).status, 400);
+
+  const reverted = await superAdmin('DELETE', '/api/admin/branding');
+  assert.equal(reverted.status, 200);
+  assert.equal(reverted.body.branding.company, 'Off The Bridle Sports');
+  assert.equal(reverted.body.branding.isDefault, true);
+
+  // Both changes are on the record.
+  assert.ok(get("SELECT 1 FROM audit_log WHERE action = 'platform.branding_set'"));
+  assert.ok(get("SELECT 1 FROM audit_log WHERE action = 'platform.branding_reset'"));
+});

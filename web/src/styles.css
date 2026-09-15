@@ -150,6 +150,8 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 /* Understated: the mark is the floodlight yellow with no plate behind it, so
    it reads as a signature rather than a badge. */
 .brand-mark { display: grid; place-items: center; flex: none; color: var(--floodlight); }
+/* A plain football reads as a football in white, not in floodlight yellow. */
+.brand-mark.mark-ball, .auth-mark.mark-ball { color: var(--chalk); }
 .brand-mark svg { display: block; }
 .brand-company {
   font-size: 1.02rem;
@@ -935,6 +937,35 @@ input[type="file"] { border: none; padding: 0; font-size: 0.85rem; }
 /* The filter should not stretch across the card the way a tab strip does. */
 .announce-filter { flex: 0 1 auto; margin-left: auto; }
 .announce-filter button { flex: 0 1 auto; font-size: 0.78rem; padding: 5px 11px; }
+
+/* ------------------------------------------------------------ mark picker -- */
+
+.mark-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.mark-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 11px 13px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  box-shadow: none;
+}
+.mark-choice.selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+.mark-plate {
+  width: 44px; height: 44px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--pitch-deep);
+  color: var(--floodlight);
+}
+.mark-plate.mark-ball { color: var(--chalk); }
+.mark-words { display: grid; gap: 1px; min-width: 0; }
 
 /* ---------------------------------------------------------------- outbox -- */
 
