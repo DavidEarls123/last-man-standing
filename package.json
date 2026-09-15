@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Last One Standing — a Premier League last-man-standing platform by Off The Bridle Sports",
+  "description": "Last One Standing \u2014 a Premier League last-man-standing platform by Off The Bridle Sports",
   "engines": {
     "node": ">=22.5.0"
   },
@@ -13,6 +13,7 @@
     "dev:web": "npm --prefix web run dev",
     "build": "npm --prefix web install && npm --prefix web run build",
     "seed": "node --disable-warning=ExperimentalWarning src/cli/seed.js",
+    "season": "node --disable-warning=ExperimentalWarning src/cli/season.js",
     "bootstrap": "node --disable-warning=ExperimentalWarning src/cli/bootstrap.js",
     "superadmin:reset": "node --disable-warning=ExperimentalWarning src/cli/superadmin-reset.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
