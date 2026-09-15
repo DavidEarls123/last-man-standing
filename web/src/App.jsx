@@ -34,7 +34,7 @@ function TopBar() {
       <header className="companybar">
         <div className="companybar-inner">
           <NavLink to="/" className="brand">
-            <span className="brand-mark"><Logo size={24} hole="var(--pitch-deep)" /></span>
+            <span className="brand-mark"><Logo size={30} hole="var(--pitch-deep)" /></span>
             <span className="brand-company">{BRAND.company}</span>
           </NavLink>
           <div className="topbar-spacer" />

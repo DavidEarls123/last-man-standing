@@ -118,7 +118,7 @@ h3 { font-size: 0.98rem; font-weight: 700; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 9px 16px;
   width: 100%;
   max-width: var(--page);
   margin: 0 auto;
@@ -152,10 +152,11 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .brand-mark { display: grid; place-items: center; flex: none; color: var(--floodlight); }
 .brand-mark svg { display: block; }
 .brand-company {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.055em;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
+  color: var(--chalk);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -234,8 +235,8 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 
 @media (max-width: 430px) {
   h1 { font-size: 1.4rem; }
-  .brand-company { font-size: 0.7rem; letter-spacing: 0.04em; }
-  .companybar-inner { gap: 7px; padding: 5px 12px; }
+  .brand-company { font-size: 0.88rem; letter-spacing: 0.01em; }
+  .companybar-inner { gap: 7px; padding: 7px 12px; }
   .companybar button, .companybar .btn { padding: 4px 9px; font-size: 0.72rem; }
   .gamebar-inner { padding: 5px 12px 6px; }
   .gamechip { font-size: 0.86rem; padding: 4px 12px; }
@@ -314,6 +315,9 @@ a:hover .card { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
   padding: 0;
   border: none;
 }
+
+/* A quiet row of actions where a page heading would otherwise sit. */
+.list-toolbar { display: flex; align-items: center; gap: 8px; }
 
 /* ----------------------------------------------------------- league card -- */
 
