@@ -139,9 +139,21 @@ production (`openssl rand -hex 48`).
 | `local` (default) | Fixtures and results live in this database. The super admin enters scores under **Platform → Results**, or `SIMULATE_LIVE=true` generates them. |
 | `football-data` | Real Premier League fixtures, scores and in-play state polled from [football-data.org](https://www.football-data.org/). Set `FOOTBALL_DATA_API_KEY`. Matchdays map onto gameweeks and each gameweek's deadline tracks its earliest kick off. |
 
-The fixtures loaded by `npm run seed` are **generated sample data**, not the real calendar —
-they exist so the app is usable end to end before you connect a feed. Club names come from
-`data/teams.json`; edit that file for a different season.
+`npm run seed` does one of two things depending on which provider is set.
+
+On `local` it generates a **sample** 38-week calendar from the club list in `data/teams.json`,
+so the app is usable end to end before you connect a feed. These are not the real fixtures.
+
+On `football-data` it asks the feed for the current season's clubs *and* the real fixture
+list, and each club is stored with its upstream id. Do not rely on `data/teams.json` here:
+three or four clubs change every summer, and a club the feed knows about but the database
+does not is a fixture that cannot be matched — which quietly removes that club from
+everybody's list of possible picks. The seed says so loudly if any club is left unmatched.
+
+Set `FOOTBALL_IDLE_POLL_SECONDS` (default 900) to control how often the feed is polled
+between matches. During a match window — anything in play, kicked off within three hours, or
+kicking off within fifteen minutes — it polls every `FOOTBALL_POLL_SECONDS` instead. A `429`
+backs off for as long as the response's `X-RequestCounter-Reset` header asks.
 
 ### Making a league your own
 

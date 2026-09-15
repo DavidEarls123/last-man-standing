@@ -78,6 +78,32 @@ export function createFootballDataProvider({ apiKey, competition = 'PL', seasonI
     // asks only when there is football to see.
     metered: true,
 
+    /**
+     * The clubs actually in the competition this season, and what the season is
+     * called. Promotion and relegation change three or four of these every
+     * summer, so the seed asks rather than assumes.
+     */
+    async season() {
+      const response = await fetch(
+        `https://api.football-data.org/v4/competitions/${competition}/teams`,
+        { headers: { 'X-Auth-Token': apiKey } },
+      );
+      if (!response.ok) {
+        throw new Error(`football-data.org responded ${response.status}: ${await response.text()}`);
+      }
+      const payload = await response.json();
+      const startYear = new Date(payload.season?.startDate ?? Date.now()).getUTCFullYear();
+      return {
+        // "2026/27", the way a season is written on a fixture list.
+        name: `${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`,
+        teams: (payload.teams ?? []).map((team) => ({
+          name: team.shortName || team.name,
+          shortName: team.tla || String(team.name).slice(0, 3).toUpperCase(),
+          externalRef: String(team.id),
+        })),
+      };
+    },
+
     /** Pull the whole season: creates gameweeks and fixtures, updates scores. */
     async refresh() {
       const season = resolveSeasonId();

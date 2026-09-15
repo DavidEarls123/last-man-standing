@@ -45,7 +45,13 @@ function saturdayOf(date) {
   return result;
 }
 
-export function seedSeason({ seasonName, startDate, teams, reset = false } = {}) {
+/**
+ * @param {object}  [options]
+ * @param {boolean} [options.fixtures=true] Generate the sample round robin.
+ *   Off when a real feed is going to supply the fixtures itself — the clubs
+ *   still need to exist first, so the feed has something to match against.
+ */
+export function seedSeason({ seasonName, startDate, teams, reset = false, fixtures = true } = {}) {
   const definition = JSON.parse(
     fs.readFileSync(path.join(config.root, 'data', 'teams.json'), 'utf8'),
   );
@@ -68,12 +74,18 @@ export function seedSeason({ seasonName, startDate, teams, reset = false } = {})
 
     for (const team of teamList) {
       run(
-        `INSERT INTO teams (season_id, name, short_name) VALUES (?, ?, ?)
-         ON CONFLICT(season_id, name) DO UPDATE SET short_name = excluded.short_name`,
-        season.id, team.name, team.shortName,
+        `INSERT INTO teams (season_id, name, short_name, external_ref) VALUES (?, ?, ?, ?)
+         ON CONFLICT(season_id, name) DO UPDATE SET
+           short_name = excluded.short_name,
+           external_ref = COALESCE(excluded.external_ref, teams.external_ref)`,
+        season.id, team.name, team.shortName, team.externalRef ?? null,
       );
     }
     const teamIds = all('SELECT id FROM teams WHERE season_id = ? ORDER BY id', season.id).map((row) => row.id);
+
+    if (!fixtures) {
+      return { seasonId: season.id, seasonName: name, teams: teamIds.length, gameweeks: 0, fixturesCreated: 0 };
+    }
     if (teamIds.length % 2 !== 0) throw new Error('An even number of teams is required');
 
     // Gameweek 1 kicks off the Saturday of the given week (default: four weeks ago,
