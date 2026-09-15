@@ -84,11 +84,22 @@ export default function AuthPage({ initialMode = 'signin' }) {
   return (
     <div className="auth-shell">
       <div className="auth-inner">
-        {/* You are signing in to the company, not to one of its games. */}
+        {/* Company, then the game under it, the same order as the bars inside.
+            You are signing in to the company; the games are what it runs. */}
         <div className="auth-brand">
           <span className="auth-mark"><Logo size={38} hole="var(--pitch-deep)" /></span>
           <span className="auth-title">{BRAND.company}</span>
-          <span className="auth-tagline">One account for every game we run.</span>
+          <div className="auth-games">
+            {GAMES.map((game) => (
+              <span className="auth-game" key={game.key}>
+                <GameMark game={game.key} size={19} hole="var(--pitch-deep)" />
+                {game.name}
+              </span>
+            ))}
+          </div>
+          <span className="auth-tagline">
+            {GAMES.length === 1 ? GAMES[0].blurb : 'One account for every game we run.'}
+          </span>
         </div>
 
       <div className="auth-card stack">
@@ -181,23 +192,6 @@ export default function AuthPage({ initialMode = 'signin' }) {
           {mode !== 'recovery' && <button className="btn-ghost btn-sm" onClick={() => setMode('recovery')}>Recovery code</button>}
         </div>
 
-        {/* What the account gets you. A second game is a second row. */}
-        <div className="auth-games">
-          <span className="auth-games-head">
-            {GAMES.length === 1 ? 'Your account covers' : 'Your account covers all of these'}
-          </span>
-          {GAMES.map((game) => (
-            <div className="auth-game" key={game.key}>
-              <span className="auth-game-mark">
-                <GameMark game={game.key} size={26} hole="var(--pitch-deep)" />
-              </span>
-              <span className="auth-game-words">
-                <span className="auth-game-name">{game.name}</span>
-                <span className="auth-game-blurb">{game.blurb}</span>
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
       </div>
     </div>
