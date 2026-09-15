@@ -3,6 +3,8 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 import { api } from '../api.js';
 import { Alert, Card } from '../components/ui.jsx';
+import Logo from '../components/Logo.jsx';
+import { BRAND } from '../lib/brand.js';
 
 const MODES = {
   signin: 'Sign in',
@@ -80,6 +82,14 @@ export default function AuthPage({ initialMode = 'signin' }) {
 
   return (
     <div className="auth-shell">
+      <div className="auth-inner">
+        <div className="auth-brand">
+          <span className="auth-mark"><Logo size={38} hole="var(--pitch-deep)" /></span>
+          <span className="auth-title">{BRAND.product}</span>
+          <span className="auth-tagline">{BRAND.blurb}</span>
+          <span className="auth-company">From {BRAND.company}</span>
+        </div>
+
       <div className="auth-card stack">
         {code && (
           <Alert tone="info">
@@ -169,6 +179,7 @@ export default function AuthPage({ initialMode = 'signin' }) {
           {mode !== 'forgot' && <button className="btn-ghost btn-sm" onClick={() => setMode('forgot')}>Forgot password</button>}
           {mode !== 'recovery' && <button className="btn-ghost btn-sm" onClick={() => setMode('recovery')}>Recovery code</button>}
         </div>
+      </div>
       </div>
     </div>
   );

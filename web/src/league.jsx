@@ -22,17 +22,33 @@ export function LeagueProvider({ leagueId, children }) {
   if (state.loading && !state.data) return <div className="content"><Spinner /></div>;
   if (!state.data) return <div className="content"><Alert tone="error">{state.error}</Alert></div>;
 
-  const theme = {
-    '--brand': state.data.league.primaryColor,
-    '--brand-2': state.data.league.secondaryColor,
-  };
-
   return (
     <LeagueContext.Provider value={{ ...state.data, leagueId, reload: load }}>
-      {/* The league's colours cascade to every tab inside it. */}
-      <div style={theme} className="grow">{children}</div>
+      <LeagueTheme
+        primary={state.data.league.primaryColor}
+        secondary={state.data.league.secondaryColor}
+      />
+      <div className="grow">{children}</div>
     </LeagueContext.Provider>
   );
+}
+
+/**
+ * Paints the league's two colours onto the document itself rather than a
+ * wrapper, so the header and the tab bar change with the content. Step back
+ * out to your own leagues and the platform's Floodlight pair returns.
+ */
+function LeagueTheme({ primary, secondary }) {
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--brand', primary);
+    root.style.setProperty('--brand-2', secondary);
+    return () => {
+      root.style.removeProperty('--brand');
+      root.style.removeProperty('--brand-2');
+    };
+  }, [primary, secondary]);
+  return null;
 }
 
 export const useLeague = () => useContext(LeagueContext) ?? {};

@@ -242,7 +242,7 @@ authRouter.post('/forgot', rateLimit({ max: 10 }), wrap(async (req, res) => {
     const link = `${config.publicUrl}/reset?token=${token}`;
     queueDirect(user, {
       kind: 'password_reset',
-      subject: 'Reset your Last Man Standing password',
+      subject: 'Reset your Last One Standing password',
       body: `Use this link within the hour to set a new password:\n\n${link}\n\nIf you did not ask for this, ignore this message.`,
     });
     audit(user.id, 'auth.reset_requested', 'user', user.id, null);

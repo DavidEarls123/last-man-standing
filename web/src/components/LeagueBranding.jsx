@@ -259,7 +259,7 @@ export default function LeagueBranding({ league, onSaved, setToast }) {
         <div className="stack">
           <label className="field">
             <InfoTip label="A draw">
-              What happens when the club somebody picked draws. The usual Last Man Standing rule
+              What happens when the club somebody picked draws. The usual Last One Standing rule
               is that only a win keeps you in, so a draw knocks you out — but some leagues let a
               draw pass.
             </InfoTip>

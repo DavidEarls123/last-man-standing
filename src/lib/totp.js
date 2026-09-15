@@ -48,7 +48,7 @@ export function verifyTotp(secret, token, window = 1) {
   return false;
 }
 
-export function otpauthUrl({ secret, account, issuer = 'Last Man Standing' }) {
+export function otpauthUrl({ secret, account, issuer = 'Last One Standing' }) {
   const label = encodeURIComponent(`${issuer}:${account}`);
   return `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 }

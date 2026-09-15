@@ -11,6 +11,8 @@ import AccountPage from './pages/AccountPage.jsx';
 import SuperAdminPage from './pages/SuperAdminPage.jsx';
 import JoinPage from './pages/JoinPage.jsx';
 import { LeagueProvider, useLeague } from './league.jsx';
+import Logo from './components/Logo.jsx';
+import { BRAND } from './lib/brand.js';
 
 function TopBar() {
   const { user, signOut } = useAuth();
@@ -18,8 +20,11 @@ function TopBar() {
     <header className="topbar">
       <div className="topbar-inner">
         <NavLink to="/" className="brand">
-          <span className="brand-mark" aria-hidden="true">⚽</span>
-          <span>Last Man Standing</span>
+          <span className="brand-mark"><Logo size={21} hole="var(--brand)" /></span>
+          <span className="brand-words">
+            <span className="brand-company">{BRAND.company}</span>
+            <span className="brand-product">{BRAND.product}</span>
+          </span>
         </NavLink>
         <div className="topbar-spacer" />
         {user && (
@@ -100,15 +105,25 @@ function LeagueShell() {
   );
 }
 
+function SiteFooter() {
+  return (
+    <footer className="sitefoot">
+      <span><strong>{BRAND.product}</strong> — {BRAND.blurb}</span>
+      <span>From {BRAND.company}</span>
+    </footer>
+  );
+}
+
 export default function App() {
   const { user, loading } = useAuth();
 
   if (loading) return <div className="app"><TopBar /><Spinner /></div>;
 
+  // Signed out, the sign-in screen is the whole page — it carries its own
+  // wordmark, so a second one in a header bar would only get in the way.
   if (!user) {
     return (
       <div className="app">
-        <TopBar />
         <Routes>
           <Route path="/join/:code" element={<AuthPage />} />
           <Route path="/reset" element={<AuthPage initialMode="reset" />} />
@@ -129,6 +144,7 @@ export default function App() {
         <Route path="/leagues/:leagueId/*" element={<LeagueShell />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <SiteFooter />
     </div>
   );
 }

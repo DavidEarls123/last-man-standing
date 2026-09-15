@@ -400,7 +400,7 @@ leaguesRouter.post('/:leagueId/members', requireLeagueAdmin, wrap(async (req, re
       body: [
         `Hi ${user.display_name},`,
         '',
-        `${req.user.display_name} has entered you into the Last Man Standing competition "${req.league.name}".`,
+        `${req.user.display_name} has entered you into the Last One Standing competition "${req.league.name}".`,
         '',
         `Sign in at ${config.publicUrl} with this temporary password: ${temporaryPassword}`,
         'Change it as soon as you are in, then make your picks.',

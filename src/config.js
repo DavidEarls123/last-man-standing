@@ -56,7 +56,7 @@ export const config = {
 
   email: {
     provider: process.env.EMAIL_PROVIDER || 'console', // console | smtp
-    from: process.env.EMAIL_FROM || 'Last Man Standing <no-reply@example.com>',
+    from: process.env.EMAIL_FROM || 'Last One Standing <no-reply@example.com>',
     smtpUrl: process.env.SMTP_URL || '',
   },
 

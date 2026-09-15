@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Last Man Standing competition platform for Premier League football",
+  "description": "Last One Standing — a Premier League last-man-standing platform by Off The Bridle Sports",
   "engines": {
     "node": ">=22.5.0"
   },

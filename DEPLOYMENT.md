@@ -196,7 +196,7 @@ Do not skip either. See section 8.
 ```ini
 # /etc/systemd/system/lms.service
 [Unit]
-Description=Last Man Standing
+Description=Last One Standing
 After=network.target
 
 [Service]
@@ -295,7 +295,7 @@ generous enough for a league:
 
 ```ini
 EMAIL_PROVIDER=smtp
-EMAIL_FROM="Last Man Standing <no-reply@example.com>"
+EMAIL_FROM="Last One Standing <no-reply@example.com>"
 SMTP_URL=smtps://username:password@smtp.brevo.com:465
 ```
 
@@ -473,7 +473,7 @@ Also keep an eye on:
 - [ ] `npm test` passing on the deployed commit
 
 One legal note, not a technical one: if you charge an entry fee and pay out a
-prize, a UK Last Man Standing pool can fall under gambling rules. Free-to-enter
+prize, a UK last-man-standing pool can fall under gambling rules. Free-to-enter
 competitions, or private pools among people who know each other, are usually
 fine — but check the current Gambling Commission guidance before you take money
 through the platform.

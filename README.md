@@ -1,6 +1,12 @@
-# Last Man Standing
+# Last One Standing
 
-A multi-league Last Man Standing platform for Premier League football.
+A multi-league last-man-standing platform for Premier League football, and the
+first game on **Off The Bridle Sports**.
+
+The platform wears its own colours — deep pitch green with a floodlight-yellow
+accent, set in Outfit — everywhere outside a league: sign in, your list of
+leagues, your account. Step into a league and its admin's title, crest and two
+colours take over until you step back out.
 
 Pick a team each gameweek. If they win you go through; if they draw or lose you are out.
 You can only use each club once until all twenty have been used, and the first three picks

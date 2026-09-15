@@ -2,12 +2,45 @@
  * Bright, friendly and simple. It is a pub game, not a bank: rounded shapes,
  * warm paper, one strong accent per league.
  *
- * --brand / --brand-2 are the two colours a league admin picks; everything
- * accent-coloured is derived from them, so a league themes itself.
+ * --brand / --brand-2 are the platform's own two colours (Floodlight: pitch
+ * green and floodlight yellow) everywhere outside a league. Step into a league
+ * and LeagueProvider swaps them for the admin's pair, so everything
+ * accent-coloured follows without a single component knowing about it.
  */
+
+/* Self-hosted so no visitor of yours is reported to a font CDN, and so the app
+   works with no internet beyond your own server. One variable file, 400-800. */
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/outfit-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/outfit-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
-  --brand: #1f9d55;
-  --brand-2: #2f6df6;
+  --brand: #0a3a29;
+  --brand-2: #ffd24a;
+
+  /* The platform's own pair, kept separate so the sign-in screen and the
+     footer stay Floodlight even while --brand is showing a league's colours. */
+  --pitch: #0a3a29;
+  --pitch-deep: #072a1e;
+  --floodlight: #ffd24a;
+  --chalk: #f1f7f2;
 
   --paper: #f4f6fb;
   --card: #ffffff;
@@ -53,7 +86,9 @@ body {
     radial-gradient(760px 380px at 92% 2%, color-mix(in srgb, var(--brand-2) 14%, transparent) 0%, transparent 58%),
     var(--paper);
   background-attachment: fixed;
-  font: 16px/1.55 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.55 "Outfit", ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Scores and counts are everywhere; figures should not jitter as they change. */
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -102,13 +137,28 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 .brand-mark { flex: none; }
 .topbar-inner > .btn, .topbar-inner > button { flex: none; }
 .brand-mark {
-  width: 30px; height: 30px;
+  width: 32px; height: 32px;
   display: grid; place-items: center;
   border-radius: 10px;
-  background: linear-gradient(140deg, var(--brand), var(--brand-2));
-  font-size: 16px;
+  background: var(--brand);
+  /* The shoe and ball are floodlight yellow on the platform's pitch green, and
+     the league's second colour once you are inside one. */
+  color: var(--brand-2);
   box-shadow: 0 3px 10px color-mix(in srgb, var(--brand) 35%, transparent);
 }
+.brand-mark svg { display: block; }
+
+/* The company sits above the game, quietly. */
+.brand-words { display: grid; line-height: 1.1; min-width: 0; }
+.brand-company {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.brand-product { font-size: 0.97rem; font-weight: 800; letter-spacing: -0.025em; }
+.brand-words > span { overflow: hidden; text-overflow: ellipsis; }
 .topbar-spacer { flex: 1; }
 
 .content {
@@ -775,8 +825,64 @@ th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; colo
 
 /* ------------------------------------------------------------------ misc -- */
 
-.auth-shell { min-height: 100%; display: grid; place-items: center; padding: 22px 16px 56px; }
+/* ------------------------------------------------------------- sign in -- */
+
+.auth-shell {
+  flex: 1;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 30px 16px 48px;
+  /* Under the floodlights: a deep pitch ground with the light falling from
+     above. This is the one screen that is the platform's and nobody else's. */
+  background:
+    radial-gradient(900px 500px at 50% -12%, color-mix(in srgb, var(--floodlight) 26%, transparent) 0%, transparent 62%),
+    linear-gradient(180deg, var(--pitch) 0%, var(--pitch-deep) 100%);
+}
+.auth-inner { width: 100%; max-width: 430px; display: grid; gap: 18px; justify-items: center; }
 .auth-card { width: 100%; max-width: 430px; }
+
+.auth-brand { display: grid; justify-items: center; gap: 10px; text-align: center; color: var(--chalk); }
+.auth-mark {
+  width: 62px; height: 62px;
+  display: grid; place-items: center;
+  border-radius: 18px;
+  background: var(--pitch-deep);
+  border: 1.5px solid color-mix(in srgb, var(--chalk) 22%, transparent);
+  color: var(--floodlight);
+}
+.auth-title { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; }
+.auth-tagline { font-size: 0.92rem; color: color-mix(in srgb, var(--chalk) 72%, transparent); }
+.auth-company {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--chalk) 55%, transparent);
+}
+/* On the sign-in screen the call to action is the floodlight, not the pitch. */
+.auth-shell .btn-primary {
+  background: var(--floodlight);
+  color: #14251c;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--floodlight) 40%, transparent);
+}
+.auth-shell .btn-ghost {
+  background: color-mix(in srgb, var(--chalk) 12%, transparent);
+  border-color: color-mix(in srgb, var(--chalk) 26%, transparent);
+  color: var(--chalk);
+}
+
+/* ---------------------------------------------------------- site footer -- */
+
+.sitefoot {
+  padding: 22px 16px 30px;
+  text-align: center;
+  display: grid;
+  gap: 3px;
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+}
+.sitefoot strong { font-weight: 700; color: var(--ink-soft); }
 
 .countdown { font-variant-numeric: tabular-nums; font-weight: 800; }
 
