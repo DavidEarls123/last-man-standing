@@ -4,15 +4,23 @@ import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
 
-// Minimal .env loader so the app runs with no extra dependency.
-function loadEnvFile(file) {
+/**
+ * Minimal .env loader so the app runs with no extra dependency.
+ *
+ * Values are trimmed before use. A file written on Windows carries a CR at the
+ * end of every line, and `echo KEY=value > .env` in Command Prompt leaves a
+ * trailing space — either one silently corrupts an API key and turns a working
+ * setup into an unexplained 401.
+ */
+export function loadEnvFile(file, env = process.env) {
   if (!fs.existsSync(file)) return;
-  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
-    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/i.exec(line);
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    if (/^\s*#/.test(line)) continue;
+    const match = /^\s*([A-Z0-9_]+)\s*=(.*)$/i.exec(line);
     if (!match) continue;
     const [, key, rawValue] = match;
-    if (process.env[key] !== undefined) continue;
-    process.env[key] = rawValue.replace(/^["'](.*)["']$/, '$1');
+    if (env[key] !== undefined) continue;
+    env[key] = rawValue.trim().replace(/^["'](.*)["']$/, '$1');
   }
 }
 loadEnvFile(path.join(root, '.env'));
