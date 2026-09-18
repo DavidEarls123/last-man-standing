@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
 import { get } from '../db/index.js';
+import { platformChecks } from '../services/readiness.js';
 
 /**
  * Put the app on a public HTTPS address for a while, free, with no account and
@@ -72,8 +73,23 @@ function start(publicUrl) {
     console.log(`  Anyone can now reach this at:\n\n     ${publicUrl}\n`);
     if (demo) console.log(`  League "${demo.name}" — join code ${demo.join_code}`);
     if (player) console.log(`  Demo sign in: ${player.email} / demo-password-1234`);
-    console.log('\n  Emails and texts are printed below instead of being sent, and are');
-    console.log('  readable in the app under Platform → Notifications.');
+    if (config.email.provider === 'smtp' && config.email.smtpUrl) {
+      console.log(`\n  Email is being sent for real, from ${config.email.from}.`);
+    } else {
+      console.log('\n  Emails and texts are printed below instead of being sent, and are');
+      console.log('  readable in the app under Platform → Notifications. Nobody else will');
+      console.log('  receive an invite or a deadline reminder until you set EMAIL_PROVIDER=smtp.');
+    }
+
+    // PUBLIC_URL is ours now, so ignore the check that complains about it.
+    const blockers = platformChecks()
+      .filter((check) => check.level === 'blocker' && !check.title.startsWith('PUBLIC_URL'));
+    if (blockers.length) {
+      console.log('\n  Before real people use this:');
+      for (const check of blockers) console.log(`    x ${check.title} — ${check.detail}`);
+      console.log('  (`npm run checkup` explains each one.)');
+    }
+
     console.log('\n  The address dies when you press Ctrl-C, and is different next time.');
     console.log(`${'─'.repeat(64)}\n`);
   }, 1200);

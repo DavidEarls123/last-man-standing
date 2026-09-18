@@ -155,6 +155,30 @@ between matches. During a match window — anything in play, kicked off within t
 kicking off within fifteen minutes — it polls every `FOOTBALL_POLL_SECONDS` instead. A `429`
 backs off for as long as the response's `X-RequestCounter-Reset` header asks.
 
+### Running it for real people
+
+Everything above works on one machine. Three things only break once somebody
+else is involved, and `npm run checkup` names all of them:
+
+```
+npm run checkup
+```
+
+It separates what will actually break a real run from what is merely worth
+knowing, and exits non-zero on the former.
+
+1. **Nobody can reach you.** `npm run share` opens a free Cloudflare Quick
+   Tunnel — a throwaway `https://*.trycloudflare.com` address pointing at this
+   machine, no account and no card. It needs `cloudflared` installed, and it
+   sets `PUBLIC_URL` for you. The address changes every time and dies on
+   Ctrl-C, so it suits an afternoon's testing rather than a season.
+2. **Invite links say localhost.** They are built from `PUBLIC_URL`, so while
+   that is `http://localhost:3000` an invite means "their own computer" to
+   whoever clicks it. `npm run share` handles this; a real server needs it set.
+3. **No email leaves the building.** `EMAIL_PROVIDER=console` prints every
+   invite, reminder and result to the terminal. Set `EMAIL_PROVIDER=smtp` and
+   `SMTP_URL` before anyone is expected to receive anything.
+
 ### Making a league your own
 
 Under **Manage**, a league admin sets:

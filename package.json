@@ -14,6 +14,7 @@
     "build": "npm --prefix web install && npm --prefix web run build",
     "seed": "node --disable-warning=ExperimentalWarning src/cli/seed.js",
     "season": "node --disable-warning=ExperimentalWarning src/cli/season.js",
+    "checkup": "node --disable-warning=ExperimentalWarning src/cli/checkup.js",
     "bootstrap": "node --disable-warning=ExperimentalWarning src/cli/bootstrap.js",
     "superadmin:reset": "node --disable-warning=ExperimentalWarning src/cli/superadmin-reset.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
