@@ -11,7 +11,7 @@
     "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch src/index.js",
     "dev:web": "npm --prefix web run dev",
-    "build": "npm --prefix web install && npm --prefix web run build",
+    "build": "npm --prefix web install --include=dev && npm --prefix web run build",
     "seed": "node --disable-warning=ExperimentalWarning src/cli/seed.js",
     "season": "node --disable-warning=ExperimentalWarning src/cli/season.js",
     "checkup": "node --disable-warning=ExperimentalWarning src/cli/checkup.js",

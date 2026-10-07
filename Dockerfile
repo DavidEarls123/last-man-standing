@@ -7,7 +7,9 @@ WORKDIR /app
 # Dependencies first, so a code change does not reinstall them.
 COPY package*.json ./
 COPY web/package*.json ./web/
-RUN npm install --omit=dev && npm --prefix web install
+# --include=dev matters: vite is a devDependency and NODE_ENV=production makes
+# npm skip those, so the build would fail with "vite: not found".
+RUN npm install --omit=dev && npm --prefix web install --include=dev
 
 COPY . .
 RUN npm --prefix web run build

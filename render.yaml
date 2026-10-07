@@ -13,6 +13,9 @@ services:
     name: last-one-standing
     runtime: node
     plan: starter            # the free plan has no disk, and sleeps
+    # `npm run build` passes --include=dev to the web install: vite is a
+    # devDependency and NODE_ENV=production tells npm to skip those, which
+    # fails the build with "vite: not found" (exit 127).
     buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
