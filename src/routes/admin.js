@@ -184,7 +184,10 @@ adminRouter.delete('/branding', wrap(async (req, res) => {
 // ----------------------------------------------------------------- leagues --
 
 const leagueSchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  // Optional: the platform admin is handing a league over, not naming somebody
+  // else's competition. A default goes in and the league admin renames it as
+  // the first thing they do in setup.
+  name: z.string().trim().min(2).max(80).optional(),
   seasonId: z.number().int().optional(),
   // Optional on create: the platform admin hands the league to someone, and
   // that admin sets the start gameweek and the rules themselves.
@@ -215,6 +218,13 @@ adminRouter.post('/leagues', wrap(async (req, res) => {
     if (!existing) throw notFound(`No user with email ${body.adminEmail} — create the account first`);
     adminUserId = existing.id;
   }
+  const admin = adminUserId ? get('SELECT * FROM users WHERE id = ?', adminUserId) : null;
+  if (adminUserId && !admin) throw notFound('No such user');
+
+  // Named after whoever is running it, so a list of drafts is still readable
+  // before any of them have been set up.
+  const name = body.name
+    ?? (admin ? `${admin.display_name}'s league`.slice(0, 80) : 'New league');
 
   // Start at the next gameweek that has not kicked off; the league admin moves
   // it wherever they want before anyone picks.
@@ -228,7 +238,7 @@ adminRouter.post('/leagues', wrap(async (req, res) => {
   );
 
   const league = createLeague({
-    name: body.name,
+    name,
     seasonId: season.id,
     startGameweek,
     adminUserId,

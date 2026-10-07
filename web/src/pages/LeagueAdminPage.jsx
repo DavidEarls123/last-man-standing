@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useLeague } from '../league.jsx';
-import { Alert, Card, Empty, Spinner, Toast, useAsync } from '../components/ui.jsx';
+import { Alert, Card, CopyButton, Empty, SecretValue, Spinner, Toast, useAsync } from '../components/ui.jsx';
 import { formatShort } from '../lib/format.js';
 import EntryOverride from '../components/EntryOverride.jsx';
 import LeagueBranding from '../components/LeagueBranding.jsx';
@@ -9,6 +9,7 @@ import SetupLock from '../components/SetupLock.jsx';
 import VerificationCard from '../components/VerificationCard.jsx';
 import Announcements from '../components/Announcements.jsx';
 import ChangeRequest from '../components/ChangeRequest.jsx';
+import SetupGuide from '../components/SetupGuide.jsx';
 
 export default function LeagueAdminPage() {
   const league = useLeague();
@@ -19,6 +20,7 @@ export default function LeagueAdminPage() {
   const [toast, setToast] = useState('');
   const [tempPassword, setTempPassword] = useState(null);
   const [section, setSection] = useState(null);
+  const [guideDone, setGuideDone] = useState(false);
 
   const run = (action) => async (event) => {
     event?.preventDefault();
@@ -50,8 +52,22 @@ export default function LeagueAdminPage() {
     : (launched ? 'players' : 'setup');
   const showing = (key) => current === key;
 
+  // Shown once per league, to its own admin: the platform admin opening
+  // somebody else's league does not need walking through their setup.
+  const showGuide = league.league.role === 'admin'
+    && !league.league.adminGuideSeen
+    && !guideDone;
+
   return (
     <div className="stack">
+      {showGuide && (
+        <SetupGuide
+          leagueId={leagueId}
+          leagueName={league.league.name}
+          onClose={() => { setGuideDone(true); league.reload(); }}
+        />
+      )}
+
       <div>
         <h1>Manage {league.league.name}</h1>
         <p className="muted small" style={{ marginTop: 4 }}>
@@ -110,6 +126,9 @@ export default function LeagueAdminPage() {
         ) : (
         <>
         <div className="code-box">{data.joinCode}</div>
+        <div className="row" style={{ marginTop: 6, justifyContent: 'center' }}>
+          <CopyButton value={data.joinCode} label="Copy code" />
+        </div>
         <div className="row" style={{ marginTop: 10 }}>
           <button className="btn-ghost btn-sm grow" type="button" onClick={() => {
             navigator.clipboard?.writeText(data.joinUrl);
@@ -166,8 +185,11 @@ export default function LeagueAdminPage() {
         </form>
         {tempPassword && (
           <Alert tone="ok">
-            Account created for {tempPassword.name}. Temporary password:{' '}
-            <strong className="mono">{tempPassword.password}</strong> — it has also been sent to them.
+            <SecretValue
+              label={`Temporary password for ${tempPassword.name}`}
+              value={tempPassword.password}
+              note="Shown once here, and also sent to them."
+            />
           </Alert>
         )}
       </Card>

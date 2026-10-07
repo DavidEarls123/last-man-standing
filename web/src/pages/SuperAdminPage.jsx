@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
-import { Alert, Card, Empty, Spinner, Stat, Toast, useAsync } from '../components/ui.jsx';
+import { Alert, Card, CopyButton, Empty, SecretValue, Spinner, Stat, Toast, useAsync } from '../components/ui.jsx';
+import PersonPicker from '../components/PersonPicker.jsx';
 import { formatShort } from '../lib/format.js';
 import Logo from '../components/Logo.jsx';
 import { usePlatform } from '../platform.jsx';
@@ -51,6 +52,7 @@ export default function SuperAdminPage() {
 
 function OverviewSection({ setToast, setError }) {
   const { data, loading, error, reload } = useAsync(() => api.get('/api/admin/overview'));
+  const [search, setSearch] = useState('');
   if (loading) return <Spinner />;
   if (error) return <Alert tone="error">{error}</Alert>;
 
@@ -113,35 +115,7 @@ function OverviewSection({ setToast, setError }) {
         </Card>
       )}
 
-      <Card title="Leagues">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>League</th><th>Admin</th><th>Code</th><th>Start</th><th>Entries</th><th>Status</th><th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.leagues.map((league) => (
-                <tr key={league.id}>
-                  <td>{league.name}</td>
-                  <td className="muted">{league.admin?.name ?? <span className="dim">unassigned</span>}</td>
-                  <td className="mono">{league.launched ? league.joinCode : <span className="dim">draft</span>}</td>
-                  <td>GW{league.startGameweek}</td>
-                  <td>{league.active}/{league.entries}</td>
-                  <td>
-                    <span className={`badge ${league.status === 'completed' ? 'badge-gold' : 'badge-in'}`}>
-                      {league.status}
-                    </span>
-                  </td>
-                  <td><Link to={`/leagues/${league.id}`}>open</Link></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data.leagues.length === 0 && <Empty>No leagues yet — create one under Leagues.</Empty>}
-      </Card>
+      <LeagueList leagues={data.leagues} search={search} setSearch={setSearch} compact />
     </div>
   );
 }
@@ -149,7 +123,9 @@ function OverviewSection({ setToast, setError }) {
 function LeaguesSection({ setToast, setError }) {
   const seasons = useAsync(() => api.get('/api/admin/seasons'));
   const overview = useAsync(() => api.get('/api/admin/overview'));
-  const [form, setForm] = useState({ name: '', adminEmail: '', seasonId: '' });
+  const [form, setForm] = useState({ name: '', seasonId: '' });
+  const [admin, setAdmin] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!form.seasonId && seasons.data?.seasons?.length) {
@@ -163,12 +139,14 @@ function LeaguesSection({ setToast, setError }) {
     setError('');
     try {
       const { league } = await api.post('/api/admin/leagues', {
-        name: form.name,
+        // No name means the server names it after whoever is running it.
+        ...(form.name.trim() ? { name: form.name.trim() } : {}),
         seasonId: Number(form.seasonId),
-        adminEmail: form.adminEmail,
+        adminUserId: admin.id,
       });
-      setToast(`"${league.name}" handed to ${form.adminEmail} — code ${league.join_code}`);
-      setForm({ ...form, name: '', adminEmail: '' });
+      setToast(`"${league.name}" handed to ${admin.displayName}`);
+      setForm({ ...form, name: '' });
+      setAdmin(null);
       overview.reload();
     } catch (createError) {
       setError(createError.message);
@@ -179,21 +157,22 @@ function LeaguesSection({ setToast, setError }) {
     <div className="stack">
       <Card title="Hand a league to an admin">
         <p className="tiny dim" style={{ marginTop: 0 }}>
-          You name the league and choose who runs it. Everything else — the look, the crest,
-          the start gameweek, the rules, anonymity — is theirs to set in the league's own Manage
-          tab, and locks once they are happy. You can still edit any of it later by opening the
-          league yourself.
+          Choose who runs it; that is the whole job. The name, the look, the crest, the start
+          gameweek, the rules and anonymity are all theirs to set in the league's own Manage tab,
+          and lock once they are happy. You can still edit any of it later by opening the league
+          yourself.
         </p>
         <form className="stack" onSubmit={create}>
+          <div className="field">
+            <span className="field-label">Who runs it</span>
+            <PersonPicker value={admin} onChange={setAdmin} />
+          </div>
           <label className="field">
-            League name
-            <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
-          </label>
-          <label className="field">
-            League admin (email of an existing account)
+            Name <span className="tiny dim">— optional, they will rename it anyway</span>
             <input
-              type="email" value={form.adminEmail} required placeholder="whoever is running it"
-              onChange={(event) => setForm({ ...form, adminEmail: event.target.value })}
+              value={form.name}
+              placeholder={admin ? `${admin.displayName}'s league` : 'Left blank, it is named after them'}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
           </label>
           {seasons.data?.seasons?.length > 1 && (
@@ -208,24 +187,98 @@ function LeaguesSection({ setToast, setError }) {
               </select>
             </label>
           )}
-          <button className="btn-primary" type="submit">Create and hand over</button>
+          <button className="btn-primary" type="submit" disabled={!admin}>Create and hand over</button>
         </form>
       </Card>
 
-      <Card title="Existing leagues">
-        {overview.loading && <Spinner />}
-        <div className="list">
-          {overview.data?.leagues.map((league) => (
-            <LeagueRow key={league.id} league={league} onChange={overview.reload} setToast={setToast} setError={setError} />
-          ))}
+      <LeagueList
+        leagues={overview.data?.leagues ?? []}
+        loading={overview.loading}
+        search={search}
+        setSearch={setSearch}
+        onChange={overview.reload}
+        setToast={setToast}
+        setError={setError}
+      />
+    </div>
+  );
+}
+
+/**
+ * Every league, findable. A platform running one club is a list; a platform
+ * running two hundred is a haystack, so this filters on anything you would
+ * actually remember — the league's name, who runs it, its join code.
+ */
+function LeagueList({ leagues, loading, search, setSearch, onChange, setToast, setError, compact = false }) {
+  const needle = search.trim().toLowerCase();
+  const shown = needle
+    ? leagues.filter((league) => [
+        league.name, league.admin?.name, league.admin?.email, league.joinCode, league.status,
+      ].some((field) => String(field ?? '').toLowerCase().includes(needle)))
+    : leagues;
+
+  return (
+    <Card title={`Leagues (${leagues.length})`}>
+      <div className="row" style={{ marginBottom: 10 }}>
+        <input
+          className="grow"
+          placeholder="Search by league, admin or join code"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        {needle && (
+          <button className="btn-ghost btn-sm" type="button" onClick={() => setSearch('')}>Clear</button>
+        )}
+      </div>
+
+      {loading && <Spinner />}
+      {!loading && leagues.length === 0 && <Empty>No leagues yet — hand one to an admin above.</Empty>}
+      {!loading && leagues.length > 0 && shown.length === 0 && (
+        <Empty>Nothing matches “{search}”.</Empty>
+      )}
+      {needle && shown.length > 0 && (
+        <p className="tiny dim" style={{ marginTop: 0 }}>
+          {shown.length} of {leagues.length}
+        </p>
+      )}
+
+      <div className="list">
+        {shown.map((league) => (compact
+          ? <LeagueLine key={league.id} league={league} />
+          : <LeagueRow
+              key={league.id} league={league} onChange={onChange}
+              setToast={setToast} setError={setError}
+            />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** The read-only shape, for the overview: who, what state, and a way in. */
+function LeagueLine({ league }) {
+  return (
+    <div className="list-item">
+      <div className="grow">
+        <Link className="strong" to={`/leagues/${league.id}`}>{league.name}</Link>
+        <div className="tiny muted">
+          GW{league.startGameweek} · {league.active}/{league.entries} still in ·{' '}
+          {league.admin ? league.admin.name : <span className="dim">no admin</span>}
+          {league.launched
+            ? <> · code <span className="mono">{league.joinCode}</span></>
+            : ' · draft'}
         </div>
-      </Card>
+      </div>
+      <span className={`badge ${league.status === 'completed' ? 'badge-gold' : 'badge-in'}`}>
+        {league.status}
+      </span>
+      <Link className="btn-ghost btn-sm" to={`/leagues/${league.id}/admin`}>Manage</Link>
     </div>
   );
 }
 
 function LeagueRow({ league, onChange, setToast, setError }) {
-  const [adminEmail, setAdminEmail] = useState('');
+  const [newAdmin, setNewAdmin] = useState(null);
 
   const act = (action) => async () => {
     setError('');
@@ -241,7 +294,7 @@ function LeagueRow({ league, onChange, setToast, setError }) {
     <div className="stack" style={{ gap: 8, padding: '11px 0', borderBottom: '1px solid var(--line-soft)' }}>
       <div className="spread">
         <div className="grow">
-          <div className="strong">{league.name}</div>
+          <div><Link className="strong" to={`/leagues/${league.id}`}>{league.name}</Link></div>
           <div className="tiny muted">
             GW{league.startGameweek} ·{' '}
             {league.launched
@@ -255,13 +308,10 @@ function LeagueRow({ league, onChange, setToast, setError }) {
         <span className="badge badge-pending">{league.status}</span>
       </div>
       <div className="row">
-        <input
-          className="grow" placeholder="new admin email" value={adminEmail}
-          onChange={(event) => setAdminEmail(event.target.value)}
-        />
-        <button className="btn-sm btn-ghost" type="button" disabled={!adminEmail} onClick={act(async () => {
-          await api.patch(`/api/admin/leagues/${league.id}`, { adminEmail });
-          setAdminEmail('');
+        <span className="grow"><PersonPicker value={newAdmin} onChange={setNewAdmin} placeholder="Hand to someone else" /></span>
+        <button className="btn-sm btn-ghost" type="button" disabled={!newAdmin} onClick={act(async () => {
+          await api.patch(`/api/admin/leagues/${league.id}`, { adminUserId: newAdmin.id });
+          setNewAdmin(null);
           setToast('League admin updated');
         })}>Set admin</button>
         <button className="btn-sm btn-ghost" type="button" onClick={act(async () => {
@@ -304,6 +354,16 @@ function PeopleSection({ setToast, setError }) {
 
   return (
     <div className="stack">
+      {created?.temporaryPassword && (
+        <Alert tone="ok">
+          <SecretValue
+            label={`Temporary password for ${created.user.displayName}`}
+            value={created.temporaryPassword}
+            note="Shown once. Send it to them however you normally would — they can change it under Account."
+          />
+        </Alert>
+      )}
+
       <Card title="Create an account">
         <form className="stack" onSubmit={act(async () => {
           const result = await api.post('/api/admin/users', {
@@ -331,14 +391,9 @@ function PeopleSection({ setToast, setError }) {
           </label>
           <button className="btn-primary" type="submit">Create account</button>
         </form>
-        {created?.temporaryPassword && (
-          <Alert tone="ok">
-            Temporary password for {created.user.displayName}:{' '}
-            <strong className="mono">{created.temporaryPassword}</strong>
-          </Alert>
-        )}
         <p className="tiny dim" style={{ marginBottom: 0 }}>
-          Make someone a league admin by creating their account here, then assigning them under Leagues.
+          Only needed for somebody who has not signed up. To hand a league to someone who already
+          has an account, go straight to Leagues and search for them.
         </p>
       </Card>
 
@@ -361,7 +416,7 @@ function PeopleSection({ setToast, setError }) {
               </div>
               <button className="btn-sm btn-ghost" type="button" onClick={act(async () => {
                 const result = await api.patch(`/api/admin/users/${user.id}`, { resetPassword: true });
-                window.alert(`Temporary password for ${user.displayName}:\n\n${result.temporaryPassword}`);
+                setCreated({ user, temporaryPassword: result.temporaryPassword });
                 setToast('Password reset');
               })}>Reset password</button>
               {!user.isSuperAdmin && (

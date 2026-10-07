@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useLeague } from '../league.jsx';
 import { Alert, Bar, Card, Countdown, Empty, Stat } from '../components/ui.jsx';
 import LeagueHeader from '../components/LeagueHeader.jsx';
@@ -13,6 +13,12 @@ export default function LeagueHomePage() {
   const entry = league.league.entry;
   const isPlayer = Boolean(entry);
   const isOut = entry?.status === 'eliminated';
+
+  // A league admin who has never set this league up has nothing to look at
+  // here — there are no entrants and no rounds yet. Send them to the job.
+  if (league.league.role === 'admin' && !league.league.adminGuideSeen) {
+    return <Navigate to="admin" replace />;
+  }
 
   return (
     <div className="stack">

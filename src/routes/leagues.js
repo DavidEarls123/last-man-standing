@@ -47,6 +47,8 @@ const summarise = (league, context, entry, role) => ({
     ? league.join_code : undefined,
   launched: Boolean(league.launched_at),
   launchedAt: league.launched_at,
+  // Only the admin is ever shown the setup walkthrough, so only they need it.
+  adminGuideSeen: Boolean(league.admin_guide_seen_at),
   status: league.status,
   startGameweek: league.start_gameweek,
   openingPicks: league.opening_picks,
@@ -581,6 +583,14 @@ leaguesRouter.post('/:leagueId/lock', requireLeagueAdmin, wrap(async (req, res) 
   audit(req.user.id, 'league.launched', 'league', req.league.id, null);
   const updated = get('SELECT * FROM leagues WHERE id = ?', req.league.id);
   res.json({ ok: true, lockedAt, launchedAt: updated.launched_at, joinCode: updated.join_code });
+}));
+
+/** The setup walkthrough has been read. Said once, remembered for good. */
+leaguesRouter.post('/:leagueId/guide-seen', requireLeagueAdmin, wrap(async (req, res) => {
+  if (!req.league.admin_guide_seen_at) {
+    run('UPDATE leagues SET admin_guide_seen_at = ? WHERE id = ?', nowIso(), req.league.id);
+  }
+  res.json({ ok: true });
 }));
 
 /**

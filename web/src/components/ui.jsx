@@ -84,3 +84,43 @@ export function useAsync(loader, deps = []) {
     reload: () => setNonce((value) => value + 1),
   };
 }
+
+/**
+ * A value worth copying — a one-time password, a join code, an invite link.
+ * Shown in full as well as copyable, because clipboard access fails silently
+ * in enough situations (an insecure origin, a locked-down browser) that a
+ * button alone would leave someone with no way to get the thing.
+ */
+export function CopyButton({ value, label = 'Copy', className = 'btn-ghost btn-sm' }) {
+  const [state, setState] = useState('idle');
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setState('done');
+    } catch {
+      setState('failed');
+    }
+    setTimeout(() => setState('idle'), 2000);
+  }
+
+  return (
+    <button type="button" className={className} onClick={copy} aria-live="polite">
+      {state === 'done' ? 'Copied' : state === 'failed' ? 'Select it yourself' : label}
+    </button>
+  );
+}
+
+/** A secret shown once, with the means to take it away. */
+export function SecretValue({ label, value, note }) {
+  return (
+    <div className="secret">
+      {label && <div className="tiny dim">{label}</div>}
+      <div className="row-tight" style={{ marginTop: 3 }}>
+        <code className="secret-value">{value}</code>
+        <CopyButton value={value} />
+      </div>
+      {note && <div className="tiny dim" style={{ marginTop: 5 }}>{note}</div>}
+    </div>
+  );
+}

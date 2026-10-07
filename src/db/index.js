@@ -40,6 +40,9 @@ ensureColumn('leagues', 'config_locked_at', 'TEXT');
 ensureColumn('leagues', 'config_locked_by', 'INTEGER');
 ensureColumn('leagues', 'launched_at', 'TEXT');
 ensureColumn('leagues', 'launched_by', 'INTEGER');
+// Per league, not per person: an admin handed a second league is walked
+// through that one too, because the setup is what they have not done yet.
+ensureColumn('leagues', 'admin_guide_seen_at', 'TEXT');
 // Leagues that predate the launch step are already out in the world: anyone has
 // joined, or the admin locked the setup. Treat those as launched so they keep
 // working rather than locking their own entrants out.
