@@ -155,6 +155,35 @@ between matches. During a match window — anything in play, kicked off within t
 kicking off within fifteen minutes — it polls every `FOOTBALL_POLL_SECONDS` instead. A `429`
 backs off for as long as the response's `X-RequestCounter-Reset` header asks.
 
+### Hosting it
+
+`npm run share` and `npm run tunnel` point a public address at your own
+machine: the link lives only while that machine is on and the command is
+running. For anything beyond an afternoon, host it.
+
+The repository carries a `render.yaml`, so Render builds it straight from
+GitHub with nothing installed locally: **New → Blueprint → pick this repo**,
+fill in the values it asks for, deploy. There is a `Dockerfile` for anywhere
+that takes a container (Fly.io, Railway, a VPS).
+
+Two things decide whether a deployment survives:
+
+- **A disk.** The database is a SQLite file. On a host with an ephemeral
+  filesystem — which includes most free tiers — every redeploy wipes the
+  competition. `render.yaml` mounts one at `/var/data`; the Dockerfile declares
+  a volume at `/data`. Do not skip this.
+- **`PUBLIC_URL`.** Invite links are built from it, so it has to be the address
+  people actually use.
+
+A host has no terminal to run `npm run seed` and `npm run bootstrap` in, so an
+empty database sets itself up on first boot: it loads the season (from
+football-data.org when a key is set, sample fixtures otherwise) and creates the
+super admin from `SUPERADMIN_EMAIL` and `SUPERADMIN_PASSWORD`. Both steps are
+guarded on there being nothing already, so restarts and redeploys leave a
+running competition alone. The two-factor secret and recovery codes are printed
+to the deploy log once — take them out of it, then delete `SUPERADMIN_PASSWORD`
+from the environment.
+
 ### Running it for real people
 
 Everything above works on one machine. Three things only break once somebody

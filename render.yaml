@@ -1,0 +1,43 @@
+# Deploy to Render straight from GitHub — no terminal, nothing installed
+# locally. Render reads this file, builds the app, attaches a disk for the
+# database and gives it a permanent https address.
+#
+#   1. render.com → New → Blueprint → pick this repository
+#   2. Fill in the values it asks for (below, under `sync: false`)
+#   3. Deploy. The first boot seeds the season and creates the admin.
+#
+# The disk matters. Without it the SQLite file lives on an ephemeral
+# filesystem and every redeploy wipes the competition.
+services:
+  - type: web
+    name: last-one-standing
+    runtime: node
+    plan: starter            # the free plan has no disk, and sleeps
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0       # node:sqlite needs 22.5+
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_FILE
+        value: /var/data/lms.sqlite
+      - key: SESSION_SECRET
+        generateValue: true  # Render invents one and keeps it
+      - key: PUBLIC_URL
+        sync: false          # https://<your-service>.onrender.com
+      - key: FOOTBALL_PROVIDER
+        value: football-data
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false          # 20+ chars; delete it after the first boot
+      - key: SUPERADMIN_NAME
+        sync: false

@@ -1,7 +1,13 @@
 import { createApp } from './app.js';
 import { config } from './config.js';
 import { startScheduler } from './scheduler.js';
+import { autoSetup } from './boot.js';
 import { get } from './db/index.js';
+
+// A hosted deployment has no terminal to run `npm run seed` and
+// `npm run bootstrap` in, so an empty database sets itself up from the
+// environment. Both steps no-op once there is a season and an admin.
+await autoSetup();
 
 const app = createApp();
 

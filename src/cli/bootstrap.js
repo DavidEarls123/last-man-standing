@@ -1,8 +1,7 @@
-import bcrypt from 'bcryptjs';
-import { get, run, audit, transaction } from '../db/index.js';
-import { checkPasswordStrength, hashPassword, randomCode } from '../lib/auth.js';
-import { generateSecret, otpauthUrl } from '../lib/totp.js';
-import { nowIso } from '../lib/time.js';
+import { get } from '../db/index.js';
+import { checkPasswordStrength } from '../lib/auth.js';
+import { otpauthUrl } from '../lib/totp.js';
+import { createOrResetSuperAdmin } from '../services/superAdmin.js';
 import { ask, flag } from './prompt.js';
 
 /**
@@ -40,38 +39,7 @@ async function main() {
     password = '';
   }
 
-  const codes = Array.from({ length: 10 }, () => `${randomCode(5)}-${randomCode(5)}`);
-  const codeHashes = await Promise.all(codes.map((code) => bcrypt.hash(code.replace(/-/g, ''), 12)));
-  const passwordHash = await hashPassword(password);
-  const totpSecret = generateSecret();
-
-  const userId = transaction(() => {
-    let id = existing?.id;
-    if (existing) {
-      run(
-        `UPDATE users SET email = ?, phone = ?, display_name = ?, password_hash = ?, totp_secret = ?,
-                totp_enabled = 0, token_version = token_version + 1, status = 'active',
-                failed_logins = 0, locked_until = NULL
-         WHERE id = ?`,
-        email || null, phone || null, name, passwordHash, totpSecret, existing.id,
-      );
-    } else {
-      const result = run(
-        `INSERT INTO users (email, phone, display_name, password_hash, is_super_admin, totp_secret,
-                            notify_email, notify_sms, created_at)
-         VALUES (?, ?, ?, ?, 1, ?, 1, ?, ?)`,
-        email || null, phone || null, name, passwordHash, totpSecret, phone ? 1 : 0, nowIso(),
-      );
-      id = Number(result.lastInsertRowid);
-    }
-    run('DELETE FROM recovery_codes WHERE user_id = ?', id);
-    for (const hash of codeHashes) {
-      run('INSERT INTO recovery_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)', id, hash, nowIso());
-    }
-    return id;
-  });
-
-  audit(userId, existing ? 'superadmin.reset' : 'superadmin.created', 'user', userId, null);
+  const { totpSecret, codes } = await createOrResetSuperAdmin({ email, phone, name, password });
 
   console.log('\n=========================================================');
   console.log(' SUPER ADMIN READY');
