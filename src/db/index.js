@@ -1,5 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
+// Before node:sqlite, so too old a Node says so instead of throwing
+// ERR_UNKNOWN_BUILTIN_MODULE at whoever is reading a deploy log.
+import '../lib/node-version.js';
 import { DatabaseSync } from 'node:sqlite';
 import { config } from '../config.js';
 

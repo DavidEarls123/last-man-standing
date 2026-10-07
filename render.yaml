@@ -25,7 +25,10 @@ services:
       sizeGB: 1
     envVars:
       - key: NODE_VERSION
-        value: 22.11.0       # node:sqlite needs 22.5+
+        # 22.13 is the first release where node:sqlite works without a command
+        # line flag, and vite wants 22.12+. This is the version the app is
+        # tested against.
+        value: 22.22.2
       - key: NODE_ENV
         value: production
       - key: DATABASE_FILE
