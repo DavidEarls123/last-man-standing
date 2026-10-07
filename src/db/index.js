@@ -21,6 +21,10 @@ function ensureColumn(table, column, definition) {
 }
 
 ensureColumn('notifications', 'meta', 'TEXT');
+// Read in the app's own inbox, which is a different thing from delivered to an
+// inbox elsewhere: `status` says whether it was sent, this says whether anyone
+// has looked at it here.
+ensureColumn('notifications', 'read_at', 'TEXT');
 ensureColumn('leagues', 'tagline', 'TEXT');
 ensureColumn('leagues', 'primary_color', "TEXT NOT NULL DEFAULT '#1f9d55'");
 ensureColumn('leagues', 'secondary_color', "TEXT NOT NULL DEFAULT '#2f6df6'");

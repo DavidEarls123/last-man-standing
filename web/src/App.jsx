@@ -9,12 +9,15 @@ import PickPage from './pages/PickPage.jsx';
 import LeagueAdminPage from './pages/LeagueAdminPage.jsx';
 import AccountPage from './pages/AccountPage.jsx';
 import SuperAdminPage from './pages/SuperAdminPage.jsx';
+import InboxPage from './pages/InboxPage.jsx';
 import JoinPage from './pages/JoinPage.jsx';
 import { ActiveLeagueProvider, LeagueProvider, useActiveLeague, useLeague } from './league.jsx';
 import Logo from './components/Logo.jsx';
 import GameMark from './components/GameMark.jsx';
 import { BRAND, GAMES } from './lib/brand.js';
 import { usePlatform } from './platform.jsx';
+import { InboxProvider, useInbox } from './inbox.jsx';
+import { Toast } from './components/ui.jsx';
 
 /**
  * Three levels, top to bottom: the company, then the game, then the league.
@@ -53,6 +56,7 @@ function TopBar() {
               {user.isSuperAdmin && (
                 <NavLink to="/admin" className="btn btn-sm btn-ghost">Platform</NavLink>
               )}
+              <InboxButton />
               <NavLink to="/account" className="btn btn-sm btn-ghost desktop-only">Account</NavLink>
               <button type="button" className="btn-sm btn-ghost" onClick={signOut}>Sign out</button>
             </>
@@ -93,6 +97,30 @@ function TopBar() {
       </nav>
     </div>
   );
+}
+
+/**
+ * The way into the app's own inbox, with a count of what has not been read.
+ * Nothing is emailed while the platform has no mail server, so this is where
+ * a reminder or a result actually reaches somebody.
+ */
+function InboxButton() {
+  const { unread } = useInbox();
+  return (
+    <NavLink to="/inbox" className="btn btn-sm btn-ghost inbox-btn" aria-label={
+      unread ? `Messages — ${unread} unread` : 'Messages'
+    }>
+      <span aria-hidden="true">✉</span>
+      <span className="desktop-only">Messages</span>
+      {unread > 0 && <span className="inbox-badge">{unread > 99 ? '99+' : unread}</span>}
+    </NavLink>
+  );
+}
+
+/** A new message, announced wherever you happen to be. */
+function InboxToast() {
+  const { arrived, clearArrived } = useInbox();
+  return <Toast message={arrived ? `New message: ${arrived}` : ''} onDone={clearArrived} ms={5000} />;
 }
 
 /**
@@ -189,13 +217,16 @@ export default function App() {
   }
 
   return (
+    <InboxProvider enabled={Boolean(user)}>
     <ActiveLeagueProvider>
     <div className="app">
       <TopBar />
+      <InboxToast />
       <Routes>
         <Route path="/" element={<div className="content"><LeagueListPage /></div>} />
         <Route path="/join/:code" element={<div className="content"><JoinPage /></div>} />
         <Route path="/account" element={<div className="content"><AccountPage /></div>} />
+        <Route path="/inbox" element={<div className="content"><InboxPage /></div>} />
         <Route path="/admin/*" element={<div className="content"><SuperAdminPage /></div>} />
         <Route path="/leagues/:leagueId/*" element={<LeagueShell />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -203,5 +234,6 @@ export default function App() {
       <SiteFooter />
     </div>
     </ActiveLeagueProvider>
+    </InboxProvider>
   );
 }

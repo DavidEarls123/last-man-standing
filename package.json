@@ -21,7 +21,8 @@
     "demo": "node --disable-warning=ExperimentalWarning src/cli/demo.js",
     "verify": "node --disable-warning=ExperimentalWarning src/cli/verify.js",
     "simulate": "node --disable-warning=ExperimentalWarning src/cli/simulate.js",
-    "share": "node --disable-warning=ExperimentalWarning src/cli/share.js"
+    "share": "node --disable-warning=ExperimentalWarning src/cli/share.js",
+    "tunnel": "node --disable-warning=ExperimentalWarning src/cli/tunnel.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

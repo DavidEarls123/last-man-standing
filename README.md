@@ -177,7 +177,23 @@ knowing, and exits non-zero on the former.
    whoever clicks it. `npm run share` handles this; a real server needs it set.
 3. **No email leaves the building.** `EMAIL_PROVIDER=console` prints every
    invite, reminder and result to the terminal. Set `EMAIL_PROVIDER=smtp` and
-   `SMTP_URL` before anyone is expected to receive anything.
+   `SMTP_URL` before anyone is expected to receive anything — or leave it off
+   and let everyone read their own messages in the app under **Messages**,
+   which is the same data and needs no mail server.
+
+`npm run tunnel` is the no-install version of `npm run share`: it reverse
+tunnels over plain `ssh` (which Windows, macOS and Linux all ship) through
+localhost.run, rather than wanting cloudflared. Both hand out a throwaway
+address and set `PUBLIC_URL` to match.
+
+### Messages
+
+Every signed-in account has an inbox at **Messages**, holding what the platform
+sent them: deadline reminders, results, announcements, a club picked for them.
+It is the same queue email is dispatched from, so with no mail server
+configured it is the only place these exist — which is what makes a run with
+real people possible before any email is set up. The envelope in the top bar
+carries the unread count, and a new message raises a toast wherever you are.
 
 ### Making a league your own
 

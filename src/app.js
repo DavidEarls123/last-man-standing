@@ -8,6 +8,7 @@ import { attachUser, requireSameOrigin } from './middleware/auth.js';
 import { authRouter } from './routes/auth.js';
 import { leaguesRouter } from './routes/leagues.js';
 import { adminRouter } from './routes/admin.js';
+import { inboxRouter } from './routes/inbox.js';
 
 export function createApp() {
   const app = express();
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/leagues', leaguesRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/inbox', inboxRouter);
 
   app.use('/api', (req, res) => res.status(404).json({ error: { code: 'not_found', message: 'Unknown endpoint' } }));
 

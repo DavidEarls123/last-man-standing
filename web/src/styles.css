@@ -248,6 +248,32 @@ h3 { font-size: 0.98rem; font-weight: 700; }
 
 .topbar-spacer { flex: 1; }
 
+/* The badge sits on the envelope rather than beside it, so the control keeps
+   one shape whether or not there is anything waiting. */
+.inbox-btn { position: relative; display: inline-flex; align-items: center; gap: 6px; }
+.inbox-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--floodlight);
+  color: #14251c;
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
+}
+/* Same job in the list: says "not read" without needing a colour to carry it. */
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+  flex: none;
+}
+
 .content {
   flex: 1;
   width: 100%;
